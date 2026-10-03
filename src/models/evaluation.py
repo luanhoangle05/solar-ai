@@ -188,6 +188,70 @@ def _available(comparison: Sequence[ModelMetrics]) -> list[ModelMetrics]:
 
 
 @dataclass(frozen=True)
+class DecisionQuality:
+    """How well a model ranks candidate angles, judged against a known true energy function.
+
+    Only possible where the true energy at every angle is known (synthetic data).
+    Regret is the true energy lost by following the model's best angle instead of
+    the true best angle. Curve error compares the shape of the predicted and true
+    angle curves after removing each curve's own mean, so a constant offset is not
+    penalized. Hours where the true curve is flat (night) are excluded.
+    """
+
+    hours: int
+    best_angle_match_rate: float
+    mean_regret_kwh: float
+    max_regret_kwh: float
+    total_regret_kwh: float
+    mean_curve_error_kwh: float
+
+
+def evaluate_decision_quality(
+    predictor: EnergyPredictor,
+    weather_rows: Sequence[WeatherFeatures],
+    true_energy_at: Callable[[WeatherFeatures, float], float],
+    candidate_angles_deg: Sequence[float],
+    *,
+    metadata: Metadata,
+) -> DecisionQuality:
+    angles = tuple(candidate_angles_deg)
+    if len(angles) < 2:
+        raise ValueError("Decision quality needs at least two candidate angles")
+    regrets, matches, curve_errors = [], [], []
+    for weather in weather_rows:
+        true_curve = [true_energy_at(weather, angle) for angle in angles]
+        if max(true_curve) == min(true_curve):
+            continue
+        predicted_curve = [entry["predicted_kwh"] for entry in predictor.predict_kwh(weather, angles, metadata=metadata)]
+        if len(predicted_curve) != len(angles):
+            raise ToolError(f"Predictor returned {len(predicted_curve)} predictions for {len(angles)} angles")
+        chosen, best = _first_argmax(predicted_curve), _first_argmax(true_curve)
+        regrets.append(true_curve[best] - true_curve[chosen])
+        matches.append(chosen == best)
+        curve_errors.append(_centered_mean_abs_difference(predicted_curve, true_curve))
+    if not regrets:
+        raise ValueError("No hours with an angle-dependent true energy to evaluate")
+    return DecisionQuality(
+        hours=len(regrets),
+        best_angle_match_rate=sum(matches) / len(matches),
+        mean_regret_kwh=sum(regrets) / len(regrets),
+        max_regret_kwh=max(regrets),
+        total_regret_kwh=sum(regrets),
+        mean_curve_error_kwh=sum(curve_errors) / len(curve_errors),
+    )
+
+
+def _first_argmax(values: Sequence[float]) -> int:
+    """Index of the highest value; the earliest (lowest angle) wins ties."""
+    return max(range(len(values)), key=lambda index: (values[index], -index))
+
+
+def _centered_mean_abs_difference(predicted: Sequence[float], actual: Sequence[float]) -> float:
+    predicted_mean, actual_mean = sum(predicted) / len(predicted), sum(actual) / len(actual)
+    return sum(abs((estimate - predicted_mean) - (value - actual_mean)) for estimate, value in zip(predicted, actual)) / len(actual)
+
+
+@dataclass(frozen=True)
 class StepOutcome:
     """What the decision pipeline concluded for one hour."""
 

@@ -107,6 +107,25 @@
       "r2": 0.9586094228785822
     }
   ],
+  "decision_quality": {
+    "boosting": {
+      "hours": 401,
+      "best_angle_match_rate": 0.8902743142144638,
+      "mean_regret_kwh": 0.0013711933128037924,
+      "max_regret_kwh": 0.053786746597528357,
+      "total_regret_kwh": 0.5498485184343207,
+      "mean_curve_error_kwh": 0.027448216298100098
+    },
+    "lstm": {
+      "hours": 401,
+      "best_angle_match_rate": 0.8603491271820449,
+      "mean_regret_kwh": 0.00318217656476696,
+      "max_regret_kwh": 0.08568725215855277,
+      "total_regret_kwh": 1.276052802471551,
+      "mean_curve_error_kwh": 0.050161577931873536
+    }
+  },
+  "decision_quality_note": "Synthetic data only: each model's best candidate angle is compared with the true best angle from the example-data formula on test-window daylight hours. Regret is true kWh lost per hour; null when the dataset has no known formula.",
   "replay_baseline": "row fixed at 35 deg for every test hour",
   "replay_notes": [
     "A 'model-predicted' replay grades the selected model's choices with that model's own predictions, so its gain is optimistic.",

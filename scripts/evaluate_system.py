@@ -19,7 +19,8 @@ from src.common.schema import Metadata, ModelMetrics
 from src.common.tool_contracts import ToolError
 from src.models.data_loader import EXAMPLE_DATASET_PATH, DatasetSource, default_dataset_source, load_weather_rows
 from src.models.evaluation import (
-    EvaluatedModelingTools, build_model_metrics, chronological_split, evaluate_predictor, selection_reason,
+    EvaluatedModelingTools, build_model_metrics, chronological_split, evaluate_decision_quality, evaluate_predictor,
+    selection_reason, to_features,
 )
 from src.service.recommendation_service import build_metadata, build_modeling_tools, replay_test_window
 
@@ -29,6 +30,10 @@ DEFAULT_OUTPUT = EXAMPLE_DATASET_PATH.parent / "system_evaluation.json"
 CONTROL_TARGET_ID = "row-001"
 INITIAL_ANGLE_DEG = 35.0
 EXAMPLE_FORMULA_SOURCE = "example-data formula, noise-free (data/example/README.md)"
+DECISION_QUALITY_NOTE = (
+    "Synthetic data only: each model's best candidate angle is compared with the true best angle from the "
+    "example-data formula on test-window daylight hours. Regret is true kWh lost per hour; null when the dataset has no known formula."
+)
 REPLAY_NOTES = [
     "A 'model-predicted' replay grades the selected model's choices with that model's own predictions, so its gain is optimistic.",
     "The baseline row never stows; hours stowed for safety lower optimized energy by design.",
@@ -43,12 +48,13 @@ def build_report(source: DatasetSource) -> dict:
     tools = build_modeling_tools(source, metadata=metadata)
     validation = tools.evaluate_models()
     selected = tools.select_best_model(validation)
-    replays = []
+    replays, decision_quality = [], None
     if source.path.resolve() == EXAMPLE_DATASET_PATH.resolve():
+        decision_quality = _decision_quality(tools, validation, split.test, metadata)
         # Only the synthetic dataset has a known generating formula to score decisions against; it leads the report.
         replays.append(replay_test_window(
             source, tools, DEFAULT_CONFIG, initial_angle_deg=INITIAL_ANGLE_DEG, control_target_id=CONTROL_TARGET_ID,
-            energy_at=lambda weather, angle: expected_row_kwh({**weather, "panel_angle_deg": angle}, DEFAULT_EXAMPLE_CONFIG),
+            energy_at=_example_formula_kwh,
             energy_source=EXAMPLE_FORMULA_SOURCE,
         ))
     replays.append(replay_test_window(source, tools, DEFAULT_CONFIG, initial_angle_deg=INITIAL_ANGLE_DEG, control_target_id=CONTROL_TARGET_ID))
@@ -60,9 +66,26 @@ def build_report(source: DatasetSource) -> dict:
         "selected_model": selected,
         "selection_reason": selection_reason(validation, selected),
         "test_metrics": _test_metrics(tools, validation, split.test, metadata),
+        "decision_quality": decision_quality,
+        "decision_quality_note": DECISION_QUALITY_NOTE,
         "replay_baseline": f"row fixed at {INITIAL_ANGLE_DEG:g} deg for every test hour",
         "replay_notes": REPLAY_NOTES,
         "system_evaluation": [dataclasses.asdict(replay) for replay in replays],
+    }
+
+
+def _example_formula_kwh(weather: dict, angle_deg: float) -> float:
+    return expected_row_kwh({**weather, "panel_angle_deg": angle_deg}, DEFAULT_EXAMPLE_CONFIG)
+
+
+def _decision_quality(tools: EvaluatedModelingTools, validation: list[ModelMetrics], test_rows: tuple, metadata: Metadata) -> dict:
+    """Per available model: how well it ranks the configured candidate angles on the test window."""
+    weather_rows = [to_features(row) for row in test_rows]
+    return {
+        entry["model"]: dataclasses.asdict(evaluate_decision_quality(
+            tools.get_predictor(entry["model"]), weather_rows, _example_formula_kwh, DEFAULT_CONFIG.candidate_angles_deg, metadata=metadata,
+        ))
+        for entry in validation if entry["status"] != "UNAVAILABLE"
     }
 
 
@@ -97,6 +120,12 @@ def main() -> None:
             replay["energy_source"], replay["hours"], replay["baseline_kwh"], replay["optimized_kwh"], replay["energy_gain_kwh"],
             replay["movement_cost_kwh_equivalent"], replay["net_benefit_kwh_equivalent"], replay["rotate_count"], replay["hold_count"],
             replay["stow_count"], replay["unnecessary_moves_avoided"], replay["severe_safety_events"], replay["unsafe_rotations"], replay["error_hours"],
+        )
+    for model, quality in (report["decision_quality"] or {}).items():
+        LOGGER.info(
+            "[decision quality] %s: best angle matched in %.1f%% of %d h; regret mean %.4f / max %.3f / total %.2f kWh; curve error %.4f kWh",
+            model, 100 * quality["best_angle_match_rate"], quality["hours"], quality["mean_regret_kwh"], quality["max_regret_kwh"],
+            quality["total_regret_kwh"], quality["mean_curve_error_kwh"],
         )
     LOGGER.info("Wrote %s", args.output)
 

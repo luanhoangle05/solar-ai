@@ -10,7 +10,8 @@ from src.common.schema import MODEL_NAMES, ModelMetrics
 from src.common.tool_contracts import ToolError
 from src.models.data_loader import load_weather_rows
 from src.models.evaluation import (
-    StepOutcome, build_model_metrics, chronological_split, compute_metrics, evaluate_predictor, evaluate_system,
+    StepOutcome, build_model_metrics, chronological_split, compute_metrics, evaluate_decision_quality, evaluate_predictor,
+    evaluate_system,
     select_best_model, selection_reason, unavailable_model_metrics,
 )
 
@@ -156,6 +157,63 @@ class ModelMetricsBuilderTest(unittest.TestCase):
         self.assertEqual(mock_entry["status"], "MOCK")
         self.assertEqual(live_entry["status"], "VALIDATED")
         self.assertEqual(mock_entry["rmse"], metrics.rmse)
+
+
+class CurvePredictor:
+    """Predicts a fixed kWh per angle, whatever the weather."""
+
+    def __init__(self, by_angle: dict[float, float]) -> None:
+        self.by_angle = by_angle
+
+    def predict_kwh(self, weather, candidate_angles_deg, *, metadata):
+        return [{"angle_deg": angle, "predicted_kwh": self.by_angle[angle]} for angle in candidate_angles_deg]
+
+
+class DecisionQualityTest(unittest.TestCase):
+    ANGLES = (30.0, 40.0, 50.0)
+    TRUE_CURVE = {30.0: 4.0, 40.0: 5.0, 50.0: 4.5}
+
+    def evaluate(self, predicted: dict[float, float], rows=None):
+        rows = rows if rows is not None else [{"timestamp": "day"}, {"timestamp": "day"}]
+        return evaluate_decision_quality(
+            CurvePredictor(predicted), rows, lambda weather, angle: 0.0 if weather["timestamp"] == "night" else self.TRUE_CURVE[angle],
+            self.ANGLES, metadata={},
+        )
+
+    def test_perfect_ranking_has_no_regret(self) -> None:
+        quality = self.evaluate(self.TRUE_CURVE)
+
+        self.assertEqual((quality.hours, quality.best_angle_match_rate, quality.mean_regret_kwh, quality.mean_curve_error_kwh), (2, 1.0, 0.0, 0.0))
+
+    def test_constant_offset_is_not_penalized(self) -> None:
+        quality = self.evaluate({angle: kwh + 2.0 for angle, kwh in self.TRUE_CURVE.items()})
+
+        self.assertEqual(quality.best_angle_match_rate, 1.0)
+        self.assertAlmostEqual(quality.mean_curve_error_kwh, 0.0)
+
+    def test_wrong_best_angle_costs_the_true_energy_difference(self) -> None:
+        quality = self.evaluate({30.0: 6.0, 40.0: 5.0, 50.0: 4.0})
+
+        self.assertEqual(quality.best_angle_match_rate, 0.0)
+        self.assertAlmostEqual(quality.mean_regret_kwh, 5.0 - 4.0)
+        self.assertAlmostEqual(quality.max_regret_kwh, 1.0)
+        self.assertAlmostEqual(quality.total_regret_kwh, 2.0)
+        # Centered curves: predicted (+1, 0, -1), true (-0.5, +0.5, 0) -> mean |difference| = (1.5 + 0.5 + 1) / 3.
+        self.assertAlmostEqual(quality.mean_curve_error_kwh, 1.0)
+
+    def test_flat_true_curve_hours_are_excluded(self) -> None:
+        quality = self.evaluate(self.TRUE_CURVE, rows=[{"timestamp": "day"}, {"timestamp": "night"}])
+
+        self.assertEqual(quality.hours, 1)
+
+    def test_tie_in_predictions_resolves_to_the_lowest_angle(self) -> None:
+        quality = self.evaluate({30.0: 5.0, 40.0: 5.0, 50.0: 5.0})
+
+        self.assertAlmostEqual(quality.mean_regret_kwh, 5.0 - 4.0)
+
+    def test_rejects_when_no_hour_depends_on_angle(self) -> None:
+        with self.assertRaisesRegex(ValueError, "angle-dependent"):
+            self.evaluate(self.TRUE_CURVE, rows=[{"timestamp": "night"}])
 
 
 class EvaluateSystemTest(unittest.TestCase):
