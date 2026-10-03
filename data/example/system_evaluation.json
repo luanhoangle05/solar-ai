@@ -62,17 +62,17 @@
       "model": "lstm",
       "implementation": "pytorch",
       "status": "MOCK",
-      "mae": 0.12835291585345188,
-      "rmse": 0.20126555555769063,
-      "r2": 0.9884534416247507
+      "mae": 0.06249782924913311,
+      "rmse": 0.09624179629157671,
+      "r2": 0.9973597741234937
     }
   ],
   "unavailable_reasons": {
     "linear_regression": "adapter not delivered yet",
     "random_forest": "adapter not delivered yet"
   },
-  "selected_model": "boosting",
-  "selection_reason": "Selected boosting (xgboost): lowest validation RMSE 0.1375 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
+  "selected_model": "lstm",
+  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.09624 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
   "test_metrics": [
     {
       "model": "linear_regression",
@@ -102,9 +102,9 @@
       "model": "lstm",
       "implementation": "pytorch",
       "status": "MOCK",
-      "mae": 0.19972195779462568,
-      "rmse": 0.3419268207998421,
-      "r2": 0.9586094228785822
+      "mae": 0.05346232398734764,
+      "rmse": 0.09261928756455813,
+      "r2": 0.9969630473728882
     }
   ],
   "decision_quality": {
@@ -118,14 +118,14 @@
     },
     "lstm": {
       "hours": 401,
-      "best_angle_match_rate": 0.8603491271820449,
-      "mean_regret_kwh": 0.00318217656476696,
-      "max_regret_kwh": 0.08568725215855277,
-      "total_regret_kwh": 1.276052802471551,
-      "mean_curve_error_kwh": 0.050161577931873536
+      "best_angle_match_rate": 0.9526184538653366,
+      "mean_regret_kwh": 0.00014833741740693035,
+      "max_regret_kwh": 0.010734401348394318,
+      "total_regret_kwh": 0.05948330438017907,
+      "mean_curve_error_kwh": 0.0073847099882570575
     }
   },
-  "decision_quality_note": "Synthetic data only: each model's best candidate angle is compared with the true best angle from the example-data formula on test-window daylight hours. Regret is true kWh lost per hour; null when the dataset has no known formula.",
+  "decision_quality_note": "Synthetic data only: each model's best candidate angle is compared with the true best angle from the example-data formula, on test-window hours where the true energy depends on the angle. Regret is true kWh lost per hour.",
   "replay_baseline": "row fixed at 35 deg for every test hour",
   "replay_notes": [
     "A 'model-predicted' replay grades the selected model's choices with that model's own predictions, so its gain is optimistic.",
@@ -138,30 +138,30 @@
       "hours": 663,
       "energy_source": "example-data formula, noise-free (data/example/README.md)",
       "baseline_kwh": 1037.2636033251833,
-      "optimized_kwh": 1045.031867289929,
-      "energy_gain_kwh": 7.768263964745756,
-      "movement_cost_kwh_equivalent": 0.015,
-      "net_benefit_kwh_equivalent": 7.753263964745757,
-      "rotate_count": 1,
-      "hold_count": 662,
+      "optimized_kwh": 1045.428682877243,
+      "energy_gain_kwh": 8.165079552059751,
+      "movement_cost_kwh_equivalent": 0.22500000000000003,
+      "net_benefit_kwh_equivalent": 7.940079552059752,
+      "rotate_count": 9,
+      "hold_count": 654,
       "stow_count": 0,
-      "unnecessary_moves_avoided": 2,
+      "unnecessary_moves_avoided": 23,
       "severe_safety_events": 0,
       "unsafe_rotations": 0,
       "error_hours": 0
     },
     {
       "hours": 663,
-      "energy_source": "model-predicted (boosting)",
-      "baseline_kwh": 1008.5532382848432,
-      "optimized_kwh": 1026.532238110205,
-      "energy_gain_kwh": 17.978999825361825,
-      "movement_cost_kwh_equivalent": 0.015,
-      "net_benefit_kwh_equivalent": 17.963999825361824,
-      "rotate_count": 1,
-      "hold_count": 662,
+      "energy_source": "model-predicted (lstm)",
+      "baseline_kwh": 1052.9959709857067,
+      "optimized_kwh": 1061.3526515388367,
+      "energy_gain_kwh": 8.35668055312999,
+      "movement_cost_kwh_equivalent": 0.22500000000000003,
+      "net_benefit_kwh_equivalent": 8.131680553129991,
+      "rotate_count": 9,
+      "hold_count": 654,
       "stow_count": 0,
-      "unnecessary_moves_avoided": 2,
+      "unnecessary_moves_avoided": 23,
       "severe_safety_events": 0,
       "unsafe_rotations": 0,
       "error_hours": 0

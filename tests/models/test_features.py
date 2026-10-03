@@ -8,7 +8,7 @@ import numpy as np
 from src.common.schema import FEATURE_COLUMNS
 from src.common.tool_contracts import ToolError
 from src.models.advanced.features import (
-    GEOMETRY_FEATURES, MODEL_FEATURE_NAMES, at_candidate_angles, feature_matrix,
+    GEOMETRY_FEATURES, MODEL_FEATURE_NAMES, at_candidate_angles, feature_matrix, feature_names,
 )
 
 
@@ -33,6 +33,13 @@ class FeatureMatrixTest(unittest.TestCase):
         self.assertEqual(MODEL_FEATURE_NAMES, (*FEATURE_COLUMNS, *GEOMETRY_FEATURES))
         self.assertEqual(matrix.shape, (2, len(MODEL_FEATURE_NAMES)))
         self.assertEqual(matrix[0, :len(FEATURE_COLUMNS)].tolist(), [weather()[name] for name in FEATURE_COLUMNS])
+
+    def test_geometry_can_be_left_out_per_model(self) -> None:
+        raw_only = feature_matrix([weather()], geometry=False)
+
+        self.assertEqual(feature_names(geometry=False), FEATURE_COLUMNS)
+        self.assertEqual(feature_names(geometry=True), MODEL_FEATURE_NAMES)
+        np.testing.assert_array_equal(raw_only, feature_matrix([weather()])[:, :len(FEATURE_COLUMNS)])
 
     def test_label_never_enters_the_matrix(self) -> None:
         self.assertNotIn("actual_kwh", MODEL_FEATURE_NAMES)

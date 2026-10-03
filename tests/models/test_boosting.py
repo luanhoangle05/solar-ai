@@ -7,7 +7,9 @@ from pathlib import Path
 import unittest
 
 from scripts.generate_example_data import DEFAULT_EXAMPLE_CONFIG, generate_rows
+from src.common.schema import FEATURE_COLUMNS
 from src.common.tool_contracts import EnergyPredictor, ToolError
+from src.models.advanced.features import MODEL_FEATURE_NAMES
 from src.models.advanced.boosting import BoostingConfig, split_for_early_stopping, train_boosting
 from src.models.evaluation import chronological_split, evaluate_predictor, to_features
 
@@ -83,6 +85,15 @@ class BoostingSmokeTest(unittest.TestCase):
         self.assertEqual([*self.fit_rows, *self.stop_rows], list(self.split.train))
         self.assertTrue(self.stop_rows)
         self.assertLess(self.stop_rows[-1]["timestamp"], self.split.validation[0]["timestamp"])
+
+    def test_geometry_features_are_an_opt_in_that_still_predicts(self) -> None:
+        with_geometry = train_boosting(self.fit_rows, self.stop_rows, dataclasses.replace(SMOKE_MODEL, use_geometry_features=True))
+
+        predictions = with_geometry.predict_kwh(self.noon, (30.0, 60.0), metadata=METADATA)
+
+        self.assertEqual([entry["angle_deg"] for entry in predictions], [30.0, 60.0])
+        self.assertEqual(self.predictor._booster.feature_names, list(FEATURE_COLUMNS))
+        self.assertEqual(with_geometry._booster.feature_names, list(MODEL_FEATURE_NAMES))
 
     def test_training_is_reproducible(self) -> None:
         again = train_boosting(self.fit_rows, self.stop_rows, SMOKE_MODEL)

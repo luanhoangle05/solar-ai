@@ -211,6 +211,15 @@ class DecisionQualityTest(unittest.TestCase):
 
         self.assertAlmostEqual(quality.mean_regret_kwh, 5.0 - 4.0)
 
+    def test_tie_goes_to_the_lowest_angle_even_when_candidates_are_unsorted(self) -> None:
+        quality = evaluate_decision_quality(
+            CurvePredictor({30.0: 5.0, 40.0: 5.0, 50.0: 5.0}), [{"timestamp": "day"}], lambda weather, angle: self.TRUE_CURVE[angle],
+            (50.0, 30.0, 40.0), metadata={},
+        )
+
+        # Lowest angle 30 is chosen (true 4.0) rather than the first listed, 50 (true 4.5).
+        self.assertAlmostEqual(quality.mean_regret_kwh, 5.0 - 4.0)
+
     def test_rejects_when_no_hour_depends_on_angle(self) -> None:
         with self.assertRaisesRegex(ValueError, "angle-dependent"):
             self.evaluate(self.TRUE_CURVE, rows=[{"timestamp": "night"}])

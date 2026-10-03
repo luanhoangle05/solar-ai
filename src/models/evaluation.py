@@ -214,7 +214,8 @@ def evaluate_decision_quality(
     *,
     metadata: Metadata,
 ) -> DecisionQuality:
-    angles = tuple(candidate_angles_deg)
+    # Ascending, so that "first" in a tie always means the lowest angle.
+    angles = tuple(sorted(candidate_angles_deg))
     if len(angles) < 2:
         raise ValueError("Decision quality needs at least two candidate angles")
     regrets, matches, curve_errors = [], [], []

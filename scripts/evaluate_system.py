@@ -32,7 +32,7 @@ INITIAL_ANGLE_DEG = 35.0
 EXAMPLE_FORMULA_SOURCE = "example-data formula, noise-free (data/example/README.md)"
 DECISION_QUALITY_NOTE = (
     "Synthetic data only: each model's best candidate angle is compared with the true best angle from the "
-    "example-data formula on test-window daylight hours. Regret is true kWh lost per hour; null when the dataset has no known formula."
+    "example-data formula, on test-window hours where the true energy depends on the angle. Regret is true kWh lost per hour."
 )
 REPLAY_NOTES = [
     "A 'model-predicted' replay grades the selected model's choices with that model's own predictions, so its gain is optimistic.",
@@ -67,7 +67,7 @@ def build_report(source: DatasetSource) -> dict:
         "selection_reason": selection_reason(validation, selected),
         "test_metrics": _test_metrics(tools, validation, split.test, metadata),
         "decision_quality": decision_quality,
-        "decision_quality_note": DECISION_QUALITY_NOTE,
+        "decision_quality_note": DECISION_QUALITY_NOTE if decision_quality is not None else None,
         "replay_baseline": f"row fixed at {INITIAL_ANGLE_DEG:g} deg for every test hour",
         "replay_notes": REPLAY_NOTES,
         "system_evaluation": [dataclasses.asdict(replay) for replay in replays],

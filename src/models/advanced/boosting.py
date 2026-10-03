@@ -5,9 +5,9 @@ from typing import Sequence
 
 import xgboost as xgb
 
-from src.common.schema import FEATURE_COLUMNS, CandidatePrediction, Metadata, WeatherFeatures, WeatherRow
+from src.common.schema import CandidatePrediction, Metadata, WeatherFeatures, WeatherRow
 from src.common.tool_contracts import ToolError
-from src.models.advanced.features import at_candidate_angles, feature_matrix, label_vector, split_for_early_stopping
+from src.models.advanced.features import at_candidate_angles, feature_matrix, feature_names, label_vector, split_for_early_stopping
 
 
 MODEL_NAME = "boosting"
@@ -27,6 +27,8 @@ class BoostingConfig:
     colsample_bytree: float = 0.9
     min_child_weight: float = 2.0
     seed: int = 20261004
+    # Off by default: on the example data geometry features improved RMSE but worsened angle ranking for trees.
+    use_geometry_features: bool = False
 
 
 DEFAULT_BOOSTING_CONFIG = BoostingConfig()
@@ -37,13 +39,13 @@ class BoostingPredictor:
 
     implementation = IMPLEMENTATION
 
-    def __init__(self, booster: xgb.Booster) -> None:
-        self._booster = booster
+    def __init__(self, booster: xgb.Booster, *, use_geometry_features: bool) -> None:
+        self._booster, self._geometry = booster, use_geometry_features
 
     def predict_kwh(self, weather: WeatherFeatures, candidate_angles_deg: tuple[float, ...], *, metadata: Metadata) -> list[CandidatePrediction]:
         candidates = at_candidate_angles(weather, candidate_angles_deg)
         try:
-            raw = self._booster.predict(_to_dmatrix(candidates), iteration_range=(0, self._booster.best_iteration + 1))
+            raw = self._booster.predict(_to_dmatrix(candidates, geometry=self._geometry), iteration_range=(0, self._booster.best_iteration + 1))
         except xgb.core.XGBoostError as exc:
             raise ToolError(f"Boosting prediction failed: {exc}") from exc
         return [
@@ -75,16 +77,16 @@ def train_boosting(train_rows: Sequence[WeatherRow], early_stopping_rows: Sequen
     try:
         booster = xgb.train(
             params,
-            _to_dmatrix(train_rows, label_vector(train_rows)),
+            _to_dmatrix(train_rows, label_vector(train_rows), geometry=config.use_geometry_features),
             num_boost_round=config.num_boost_round,
-            evals=[(_to_dmatrix(early_stopping_rows, label_vector(early_stopping_rows)), EARLY_STOPPING_SET_NAME)],
+            evals=[(_to_dmatrix(early_stopping_rows, label_vector(early_stopping_rows), geometry=config.use_geometry_features), EARLY_STOPPING_SET_NAME)],
             early_stopping_rounds=config.early_stopping_rounds,
             verbose_eval=False,
         )
     except xgb.core.XGBoostError as exc:
         raise ToolError(f"Boosting training failed: {exc}") from exc
-    return BoostingPredictor(booster)
+    return BoostingPredictor(booster, use_geometry_features=config.use_geometry_features)
 
 
-def _to_dmatrix(rows: Sequence[WeatherFeatures], labels=None) -> xgb.DMatrix:
-    return xgb.DMatrix(feature_matrix(rows), label=labels, feature_names=list(FEATURE_COLUMNS))
+def _to_dmatrix(rows: Sequence[WeatherFeatures], labels=None, *, geometry: bool) -> xgb.DMatrix:
+    return xgb.DMatrix(feature_matrix(rows, geometry=geometry), label=labels, feature_names=list(feature_names(geometry=geometry)))

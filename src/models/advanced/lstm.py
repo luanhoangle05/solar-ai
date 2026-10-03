@@ -19,9 +19,9 @@ import numpy as np
 import torch
 from torch import nn
 
-from src.common.schema import FEATURE_COLUMNS, CandidatePrediction, Metadata, WeatherFeatures, WeatherRow
+from src.common.schema import CandidatePrediction, Metadata, WeatherFeatures, WeatherRow
 from src.common.tool_contracts import ToolError
-from src.models.advanced.features import at_candidate_angles, feature_matrix, label_vector
+from src.models.advanced.features import MODEL_FEATURE_NAMES, at_candidate_angles, feature_matrix, label_vector
 
 
 MODEL_NAME = "lstm"
@@ -86,7 +86,7 @@ def build_sequences(rows: Sequence[WeatherFeatures], sequence_length: int, *, fi
         if all(instants[position] - instants[position - 1] == STEP for position in range(index - sequence_length + 2, index + 1))
     )
     windows = [features[index - sequence_length + 1:index + 1] for index in targets]
-    inputs = np.stack(windows) if windows else np.empty((0, sequence_length, len(FEATURE_COLUMNS)))
+    inputs = np.stack(windows) if windows else np.empty((0, sequence_length, len(MODEL_FEATURE_NAMES)))
     return SequenceSet(inputs=inputs, target_indices=targets)
 
 
@@ -112,7 +112,7 @@ class LstmPredictor:
     def predict_kwh(self, weather: WeatherFeatures, candidate_angles_deg: tuple[float, ...], *, metadata: Metadata) -> list[CandidatePrediction]:
         past = self._history_before(weather["timestamp"])
         current = feature_matrix(at_candidate_angles(weather, candidate_angles_deg))
-        windows = np.stack([np.vstack([past, row]) for row in current]) if len(current) else np.empty((0, self._sequence_length, len(FEATURE_COLUMNS)))
+        windows = np.stack([np.vstack([past, row]) for row in current]) if len(current) else np.empty((0, self._sequence_length, len(MODEL_FEATURE_NAMES)))
         predicted = _predict(self._network, self._scaler, windows)
         return [{"angle_deg": angle, "predicted_kwh": max(0.0, float(value))} for angle, value in zip(candidate_angles_deg, predicted)]
 
@@ -127,7 +127,7 @@ class LstmPredictor:
         if missing:
             raise ToolError(f"LSTM history is missing {len(missing)} of the {self._sequence_length - 1} hours before {timestamp}")
         rows = [self._history[now - STEP * back] for back in hours_back]
-        return np.array(rows).reshape(self._sequence_length - 1, len(FEATURE_COLUMNS))
+        return np.array(rows).reshape(self._sequence_length - 1, len(MODEL_FEATURE_NAMES))
 
 
 def train_lstm(

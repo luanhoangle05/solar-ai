@@ -11,7 +11,7 @@ import numpy as np
 from scripts.generate_example_data import DEFAULT_EXAMPLE_CONFIG, generate_rows
 from src.common.schema import FEATURE_COLUMNS
 from src.common.tool_contracts import EnergyPredictor, ToolError
-from src.models.advanced.features import feature_matrix, split_for_early_stopping
+from src.models.advanced.features import MODEL_FEATURE_NAMES, feature_matrix, split_for_early_stopping
 from src.models.advanced.lstm import LstmConfig, build_sequences, train_lstm
 from src.models.evaluation import chronological_split, evaluate_predictor, to_features
 
@@ -24,7 +24,6 @@ SMOKE_DATA = dataclasses.replace(
     end=datetime(2026, 6, 15, tzinfo=timezone.utc),
 )
 SMOKE_MODEL = LstmConfig(sequence_length=4, hidden_size=24, max_epochs=25, patience=6)
-ANGLE_COLUMN = FEATURE_COLUMNS.index("panel_angle_deg")
 
 
 def hourly_rows(count: int, *, skip_hours: tuple[int, ...] = ()) -> list[dict]:
@@ -40,7 +39,7 @@ class BuildSequencesTest(unittest.TestCase):
         sequences = build_sequences(hourly_rows(6), sequence_length=3)
 
         self.assertEqual(sequences.target_indices, (2, 3, 4, 5))
-        self.assertEqual(sequences.inputs.shape, (4, 3, len(FEATURE_COLUMNS)))
+        self.assertEqual(sequences.inputs.shape, (4, 3, len(MODEL_FEATURE_NAMES)))
         self.assertEqual(sequences.inputs[0, :, 0].tolist(), [0.0, 1.0, 2.0])
         self.assertEqual(sequences.inputs[-1, :, 0].tolist(), [3.0, 4.0, 5.0])
 
@@ -86,7 +85,7 @@ class BuildSequencesTest(unittest.TestCase):
         sequences = build_sequences(hourly_rows(2), sequence_length=3)
 
         self.assertEqual(sequences.target_indices, ())
-        self.assertEqual(sequences.inputs.shape, (0, 3, len(FEATURE_COLUMNS)))
+        self.assertEqual(sequences.inputs.shape, (0, 3, len(MODEL_FEATURE_NAMES)))
 
 
 class LstmSmokeTest(unittest.TestCase):
