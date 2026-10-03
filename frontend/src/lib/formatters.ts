@@ -1,7 +1,7 @@
 ﻿import type { ModelName } from "@/types/solar";
 
 export function formatAngle(value: number | null): string {
-  return value === null ? "Unavailable" : `${value.toFixed(0)}Â°`;
+  return value === null ? "Unavailable" : `${value.toFixed(0)}°`;
 }
 
 export function formatKwh(value: number | null): string {
