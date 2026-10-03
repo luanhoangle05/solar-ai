@@ -110,5 +110,63 @@ def selection_reason(comparison: Sequence[ModelMetrics], selected: ModelName) ->
     )
 
 
+@dataclass(frozen=True)
+class ModelCandidate:
+    """One of the four contract models: a trained adapter, or the reason there is none."""
+
+    model: ModelName
+    implementation: str
+    predictor: EnergyPredictor | None = None
+    unavailable_reason: str | None = None
+
+
+class EvaluatedModelingTools:
+    """`ModelingTools` over trained adapters, scored on one shared validation window.
+
+    Luan's baselines and Duy's advanced models plug in through the same
+    `EnergyPredictor` interface. A model that is missing or fails evaluation is
+    reported UNAVAILABLE with null metrics; it is never given invented numbers.
+    """
+
+    def __init__(self, candidates: Sequence[ModelCandidate], validation_rows: Sequence[WeatherRow], *, metadata: Metadata) -> None:
+        by_model = {candidate.model: candidate for candidate in candidates}
+        if len(by_model) != len(candidates) or set(by_model) != set(MODEL_NAMES):
+            raise ValueError(f"Expected exactly one candidate for each of {MODEL_NAMES}")
+        self._candidates = by_model
+        self._validation_rows = tuple(validation_rows)
+        self._metadata = metadata
+        self._unavailable_reasons: dict[ModelName, str] = {}
+
+    def evaluate_models(self) -> list[ModelMetrics]:
+        return [self._evaluate(self._candidates[model]) for model in MODEL_NAMES]
+
+    def select_best_model(self, comparison: list[ModelMetrics]) -> ModelName:
+        return select_best_model(comparison)
+
+    def get_predictor(self, model: ModelName) -> EnergyPredictor:
+        candidate = self._candidates.get(model)
+        if candidate is None or candidate.predictor is None:
+            raise ToolError(f"No predictor available for model {model!r}")
+        return candidate.predictor
+
+    def unavailable_reasons(self) -> dict[ModelName, str]:
+        """Why each unavailable model has no metrics, as found by the last evaluation."""
+        return dict(self._unavailable_reasons)
+
+    def _evaluate(self, candidate: ModelCandidate) -> ModelMetrics:
+        if candidate.predictor is None:
+            return self._unavailable(candidate, candidate.unavailable_reason or "no adapter supplied")
+        try:
+            metrics = evaluate_predictor(candidate.predictor, self._validation_rows, metadata=self._metadata)
+        except (ToolError, ValueError) as exc:
+            return self._unavailable(candidate, f"evaluation failed: {exc}")
+        self._unavailable_reasons.pop(candidate.model, None)
+        return build_model_metrics(candidate.model, candidate.implementation, metrics, dataset_kind=self._metadata["dataset_kind"])
+
+    def _unavailable(self, candidate: ModelCandidate, reason: str) -> ModelMetrics:
+        self._unavailable_reasons[candidate.model] = reason
+        return unavailable_model_metrics(candidate.model, implementation=candidate.implementation)
+
+
 def _available(comparison: Sequence[ModelMetrics]) -> list[ModelMetrics]:
     return [entry for entry in comparison if entry["status"] != "UNAVAILABLE" and entry["rmse"] is not None]
