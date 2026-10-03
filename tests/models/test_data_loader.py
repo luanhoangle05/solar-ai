@@ -68,6 +68,24 @@ class LoadWeatherRowsTest(unittest.TestCase):
         with self.assertRaisesRegex(DatasetError, "chronological"):
             load_weather_rows(path)
 
+    def test_rejects_duplicate_timestamp(self) -> None:
+        path = self.write(list(WEATHER_COLUMNS), [VALID_ROW, VALID_ROW])
+
+        with self.assertRaisesRegex(DatasetError, "line 3.*chronological"):
+            load_weather_rows(path)
+
+    def test_rejects_wrong_number_of_values(self) -> None:
+        path = self.write(list(WEATHER_COLUMNS), [VALID_ROW[:-1]])
+
+        with self.assertRaisesRegex(DatasetError, "line 2: expected 13 values, got 12"):
+            load_weather_rows(path)
+
+    def test_skips_blank_lines_and_byte_order_mark(self) -> None:
+        lines = [",".join(WEATHER_COLUMNS), ",".join(map(str, VALID_ROW)), "", ""]
+        self.path.write_text(chr(10).join(lines), encoding="utf-8-sig")
+
+        self.assertEqual(len(load_weather_rows(self.path)), 1)
+
     def test_rejects_file_without_data_rows(self) -> None:
         path = self.write(list(WEATHER_COLUMNS), [])
 
@@ -94,6 +112,11 @@ class DefaultDatasetSourceTest(unittest.TestCase):
 
         self.assertEqual(source.path, Path("data/processed/weather.csv"))
         self.assertEqual((source.dataset_kind, source.label_source), ("LIVE", "measured"))
+
+    def test_rejects_unknown_dataset_kind(self) -> None:
+        with mock.patch.dict(os.environ, {DATASET_KIND_ENV: "EXAMPLE"}, clear=True):
+            with self.assertRaisesRegex(DatasetError, DATASET_KIND_ENV):
+                default_dataset_source()
 
     def test_rejects_mock_dataset_labeled_as_measured(self) -> None:
         env = {DATASET_KIND_ENV: "MOCK", LABEL_SOURCE_ENV: "measured"}

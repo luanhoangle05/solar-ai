@@ -1,7 +1,7 @@
 """Synthetic example dataset: contract-valid, reproducible, physically plausible."""
 
 import dataclasses
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import unittest
 
 from scripts.generate_example_data import (
@@ -16,6 +16,7 @@ SHORT_CONFIG = dataclasses.replace(
     start=datetime(2026, 6, 1, tzinfo=timezone.utc),
     end=datetime(2026, 6, 15, tzinfo=timezone.utc),
 )
+FULL_SEASON = generate_rows(DEFAULT_EXAMPLE_CONFIG)
 
 
 class ExampleDataTest(unittest.TestCase):
@@ -26,7 +27,8 @@ class ExampleDataTest(unittest.TestCase):
     def test_rows_are_hourly_and_match_weather_contract(self) -> None:
         self.assertEqual(len(self.rows), 14 * 24)
         self.assertEqual(self.rows[0]["timestamp"], "2026-06-01T00:00:00Z")
-        self.assertEqual(self.rows[1]["timestamp"], "2026-06-01T01:00:00Z")
+        instants = [datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")) for row in self.rows]
+        self.assertEqual({later - earlier for earlier, later in zip(instants, instants[1:])}, {timedelta(hours=1)})
         for row in self.rows:
             self.assertEqual(tuple(row), WEATHER_COLUMNS)
             validate_weather_row(row)
@@ -71,8 +73,7 @@ class ExampleDataTest(unittest.TestCase):
         self.assertGreater(pearson(irradiance, energy), 0.95)
 
     def test_energy_falls_with_cloud_cover(self) -> None:
-        full_season = generate_rows(DEFAULT_EXAMPLE_CONFIG)
-        midday = [row for row in full_season if row["sun_elevation_deg"] > 40]
+        midday = [row for row in FULL_SEASON if row["sun_elevation_deg"] > 40]
         clear = [row["actual_kwh"] for row in midday if row["cloud_cover_pct"] < 30]
         overcast = [row["actual_kwh"] for row in midday if row["cloud_cover_pct"] > 80]
 
@@ -99,7 +100,7 @@ class ExampleDataTest(unittest.TestCase):
 
 class CommittedExampleDatasetTest(unittest.TestCase):
     def test_committed_csv_is_the_reproducible_default_output(self) -> None:
-        self.assertEqual(load_weather_rows(EXAMPLE_DATASET_PATH), generate_rows(DEFAULT_EXAMPLE_CONFIG))
+        self.assertEqual(load_weather_rows(EXAMPLE_DATASET_PATH), FULL_SEASON)
 
 
 def pearson(xs: list[float], ys: list[float]) -> float:

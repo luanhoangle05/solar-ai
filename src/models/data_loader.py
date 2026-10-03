@@ -25,7 +25,6 @@ LABEL_SOURCE_ENV = "SOLAR_LABEL_SOURCE"
 _METADATA_HINTS = get_type_hints(Metadata)
 _DATASET_KINDS = get_args(_METADATA_HINTS["dataset_kind"])
 _LABEL_SOURCES = get_args(_METADATA_HINTS["label_source"])
-_HEADER_LINE = 1
 
 
 class DatasetError(ValueError):
@@ -59,16 +58,17 @@ def load_weather_rows(path: Path) -> list[WeatherRow]:
     """Read a 13-column weather CSV into validated, chronological rows."""
     if not path.is_file():
         raise DatasetError(f"Dataset not found: {path}")
-    with path.open(newline="", encoding="utf-8") as handle:
+    # utf-8-sig tolerates the byte-order mark that Excel and PowerShell 5 write.
+    with path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.reader(handle)
         header = next(reader, None)
         if header is None or tuple(header) != WEATHER_COLUMNS:
             raise DatasetError(f"{path}: header must be exactly {WEATHER_COLUMNS}, got {header}")
-        rows = [_parse_row(values, line, path) for line, values in enumerate(reader, start=_HEADER_LINE + 1)]
-    if not rows:
+        numbered = [(reader.line_num, _parse_row(values, reader.line_num, path)) for values in reader if values]
+    if not numbered:
         raise DatasetError(f"{path}: no data rows")
-    _require_chronological(rows, path)
-    return rows
+    _require_chronological(numbered, path)
+    return [row for _, row in numbered]
 
 
 def _parse_row(values: list[str], line: int, path: Path) -> WeatherRow:
@@ -85,9 +85,10 @@ def _parse_row(values: list[str], line: int, path: Path) -> WeatherRow:
     return row
 
 
-def _require_chronological(rows: list[WeatherRow], path: Path) -> None:
-    """Time-aware splits rely on strictly increasing timestamps."""
-    instants = [datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")) for row in rows]
-    for index, (earlier, later) in enumerate(zip(instants, instants[1:]), start=_HEADER_LINE + 2):
+def _require_chronological(numbered: list[tuple[int, WeatherRow]], path: Path) -> None:
+    """Time-aware splits rely on strictly increasing timestamps. Gaps are allowed here;
+    sequence models must check spacing themselves."""
+    instants = [datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")) for _, row in numbered]
+    for (line, _), earlier, later in zip(numbered[1:], instants, instants[1:]):
         if later <= earlier:
-            raise DatasetError(f"{path} line {index}: rows are not in strictly chronological order")
+            raise DatasetError(f"{path} line {line}: rows are not in strictly chronological order")

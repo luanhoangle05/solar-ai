@@ -63,7 +63,7 @@ from north.
 **Weather** — random but persistent:
 
 - Cloud cover: a daily level (Beta(0.8, 1) draw, half carried over from the previous
-  day) plus hourly Gaussian noise (sigma 12 points), clamped to 0..100.
+  day; the day changes at local solar midnight) plus hourly Gaussian noise (sigma 12 points), clamped to 0..100.
 - Temperature: seasonal cosine (mean 8 C, amplitude 10 C, warmest on day 200) plus a
   diurnal cosine (amplitude 6 C, warmest at 15:00 solar time), minus up to 3 C of
   daytime cloud cooling, plus Gaussian noise (sigma 1 C).

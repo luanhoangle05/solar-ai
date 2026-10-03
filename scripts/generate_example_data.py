@@ -31,6 +31,7 @@ NOCT_IRRADIANCE_WM2 = 800.0
 HOURS_PER_INTERVAL = 1.0
 MINUTES_PER_DEGREE_LONGITUDE = 4.0
 DAYS_PER_YEAR = 365.0
+DEGREES_PER_HOUR = 15.0
 WEATHER_DECIMALS = 1
 SUN_ANGLE_DECIMALS = 2
 ENERGY_DECIMALS = 4
@@ -85,7 +86,7 @@ DEFAULT_EXAMPLE_CONFIG = ExampleDataConfig()
 
 @dataclass(frozen=True)
 class DayWeather:
-    """Slow-moving conditions shared by every hour of one UTC day."""
+    """Slow-moving conditions shared by every hour of one local solar day."""
 
     cloud_pct: float
     wind_kmh: float
@@ -98,7 +99,7 @@ def generate_rows(config: ExampleDataConfig = DEFAULT_EXAMPLE_CONFIG) -> list[We
     day_weather: DayWeather | None = None
     interval_start = config.start
     while interval_start < config.end:
-        if day_weather is None or interval_start.hour == 0:
+        if day_weather is None or _is_local_solar_midnight(interval_start, config):
             day_weather = _next_day_weather(day_weather, rng, config)
         row = _build_row(interval_start, day_weather, rng, config)
         validate_weather_row(row)
@@ -150,7 +151,9 @@ def _next_day_weather(previous: DayWeather | None, rng: random.Random, config: E
 
 def _build_row(interval_start: datetime, day: DayWeather, rng: random.Random, config: ExampleDataConfig) -> WeatherRow:
     midpoint = interval_start + timedelta(hours=HOURS_PER_INTERVAL / 2)
-    elevation, azimuth = _sun_position(midpoint, config)
+    exact_elevation, azimuth = _sun_position(midpoint, config)
+    # Round first so the stored elevation and the irradiance agree about day versus night.
+    elevation = round(exact_elevation, SUN_ANGLE_DECIMALS) + 0.0
     cloud_pct = _clamp(day.cloud_pct + rng.gauss(0, config.cloud_hourly_sigma_pct), 0, 100)
     ghi, dni, dhi = _irradiance(elevation, cloud_pct / 100, config)
     wind = max(0.0, day.wind_kmh * (1 + rng.gauss(0, config.wind_hourly_sigma_fraction)))
@@ -158,7 +161,7 @@ def _build_row(interval_start: datetime, day: DayWeather, rng: random.Random, co
     wind_rounded = round(wind, WEATHER_DECIMALS)
     features = {
         "timestamp": interval_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "temperature_c": round(_temperature_c(midpoint, cloud_pct, elevation, rng, config), WEATHER_DECIMALS),
+        "temperature_c": round(_temperature_c(midpoint, cloud_pct, elevation, rng, config), WEATHER_DECIMALS) + 0.0,
         "cloud_cover_pct": round(cloud_pct, WEATHER_DECIMALS),
         "precipitation_mm": round(_precipitation_mm(cloud_pct, rng, config), WEATHER_DECIMALS),
         "wind_speed_kmh": wind_rounded,
@@ -166,7 +169,7 @@ def _build_row(interval_start: datetime, day: DayWeather, rng: random.Random, co
         "ghi_wm2": ghi,
         "dni_wm2": dni,
         "dhi_wm2": dhi,
-        "sun_elevation_deg": round(elevation, SUN_ANGLE_DECIMALS),
+        "sun_elevation_deg": elevation,
         "sun_azimuth_deg": round(azimuth, SUN_ANGLE_DECIMALS) % 360,
         "panel_angle_deg": float(rng.randrange(0, config.panel_angle_max_deg + 1, config.panel_angle_step_deg)),
     }
@@ -174,6 +177,12 @@ def _build_row(interval_start: datetime, day: DayWeather, rng: random.Random, co
     noise = rng.gauss(0, config.noise_fraction)
     energy = max(0.0, expected_row_kwh(features, config) * (1 + noise))
     return {**features, "actual_kwh": round(energy, ENERGY_DECIMALS)}
+
+
+def _is_local_solar_midnight(interval_start: datetime, config: ExampleDataConfig) -> bool:
+    """Daily regimes change at night on site, not at UTC midnight in mid-afternoon."""
+    local = interval_start + timedelta(hours=config.longitude_deg / DEGREES_PER_HOUR)
+    return local.hour == 0
 
 
 def _sun_position(instant: datetime, config: ExampleDataConfig) -> tuple[float, float]:
@@ -221,7 +230,7 @@ def _temperature_c(instant: datetime, cloud_pct: float, elevation_deg: float, rn
     seasonal = config.seasonal_mean_temperature_c + config.seasonal_amplitude_c * math.cos(
         2 * math.pi * (day_of_year - config.warmest_day_of_year) / DAYS_PER_YEAR
     )
-    solar_hour = (instant.hour + instant.minute / 60 + config.longitude_deg / 15) % 24
+    solar_hour = (instant.hour + instant.minute / 60 + config.longitude_deg / DEGREES_PER_HOUR) % 24
     diurnal = config.diurnal_amplitude_c * math.cos(2 * math.pi * (solar_hour - config.warmest_solar_hour) / 24)
     cloud_cooling = config.cloud_cooling_c * cloud_pct / 100 if elevation_deg > 0 else 0.0
     return seasonal + diurnal - cloud_cooling + rng.gauss(0, config.temperature_sigma_c)
