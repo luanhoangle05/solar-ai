@@ -1,0 +1,2 @@
+# Python 3.11; architecture/contracts phase uses only the standard library.
+# Add approved runtime dependencies within the owning implementation phase.

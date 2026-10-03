@@ -1,0 +1,700 @@
+{
+  "timestamp": "2026-06-21T19:00:00Z",
+  "metadata": {
+    "schema_version": "0.1.0",
+    "dataset_kind": "MOCK",
+    "label_source": "mock",
+    "energy_scope": "row",
+    "prediction_horizon_minutes": 60,
+    "interval_start": "2026-06-21T19:00:00Z",
+    "control_target_id": "row-001",
+    "config_id": "prototype-row-hour-v1",
+    "assumptions": [
+      "MOCK DEVELOPMENT DATA: hand-authored weather and energy values; not measurements or physics output.",
+      "kWh is for one 20-panel row over the hour starting at interval_start.",
+      "PROTOTYPE SIMULATION ASSUMPTIONS: movement and safety coefficients are not hardware-calibrated.",
+      "Metrics are calculated from synthetic vectors, not trained-model evaluation.",
+      "Four whole-row zones contain 260/240/260/240 panels."
+    ]
+  },
+  "current_weather": {
+    "temperature_c": 22,
+    "cloud_cover_pct": 15,
+    "precipitation_mm": 0,
+    "wind_speed_kmh": 14,
+    "wind_gust_kmh": 24,
+    "ghi_wm2": 850,
+    "dni_wm2": 750,
+    "dhi_wm2": 201
+  },
+  "data_agent": {
+    "status": "VALID",
+    "source": "mock_csv",
+    "forecast_age_minutes": 5.0,
+    "used_cache": false,
+    "issues": []
+  },
+  "model_comparison": [
+    {
+      "model": "linear_regression",
+      "implementation": "linear_regression",
+      "status": "MOCK",
+      "mae": 0.3999999999999999,
+      "rmse": 0.4062019202317979,
+      "r2": 0.8680000000000001
+    },
+    {
+      "model": "random_forest",
+      "implementation": "random_forest",
+      "status": "MOCK",
+      "mae": 0.17500000000000004,
+      "rmse": 0.18027756377319956,
+      "r2": 0.974
+    },
+    {
+      "model": "boosting",
+      "implementation": "xgboost",
+      "status": "MOCK",
+      "mae": 0.08749999999999991,
+      "rmse": 0.09013878188659966,
+      "r2": 0.9935
+    },
+    {
+      "model": "lstm",
+      "implementation": "lstm",
+      "status": "MOCK",
+      "mae": 0.2749999999999999,
+      "rmse": 0.278388218141501,
+      "r2": 0.9380000000000001
+    }
+  ],
+  "selected_model": "boosting",
+  "candidate_predictions": [
+    {
+      "angle_deg": 30,
+      "predicted_kwh": 5.65
+    },
+    {
+      "angle_deg": 35,
+      "predicted_kwh": 5.8
+    },
+    {
+      "angle_deg": 40,
+      "predicted_kwh": 5.99
+    },
+    {
+      "angle_deg": 45,
+      "predicted_kwh": 6.09
+    },
+    {
+      "angle_deg": 50,
+      "predicted_kwh": 6.1
+    },
+    {
+      "angle_deg": 55,
+      "predicted_kwh": 6.105
+    },
+    {
+      "angle_deg": 60,
+      "predicted_kwh": 6.11
+    }
+  ],
+  "optimization": {
+    "current_angle_deg": 35.0,
+    "recommended_angle_deg": 45.0,
+    "baseline_kwh": 5.8,
+    "predicted_kwh": 6.09,
+    "energy_gain_kwh": 0.29000000000000004,
+    "movement_cost_kwh_equivalent": 0.03,
+    "net_benefit_kwh_equivalent": 0.26
+  },
+  "safety": {
+    "passed": true,
+    "checks": [
+      {
+        "name": "wind_safety",
+        "passed": true,
+        "severity": "SEVERE",
+        "reason": "MOCK illustrative check; controller not executed."
+      },
+      {
+        "name": "angle_limits",
+        "passed": true,
+        "severity": "SEVERE",
+        "reason": "MOCK illustrative check; controller not executed."
+      },
+      {
+        "name": "data_freshness",
+        "passed": true,
+        "severity": "BLOCK_ROTATE",
+        "reason": "MOCK illustrative check; controller not executed."
+      },
+      {
+        "name": "panel_status",
+        "passed": true,
+        "severity": "BLOCK_ROTATE",
+        "reason": "MOCK illustrative check; controller not executed."
+      },
+      {
+        "name": "model_confidence",
+        "passed": true,
+        "severity": "BLOCK_ROTATE",
+        "reason": "MOCK illustrative check; controller not executed."
+      }
+    ],
+    "reason": "MOCK safety report for frontend development; no hardware authorization."
+  },
+  "decision": {
+    "action": "ROTATE",
+    "target_angle_deg": 45.0,
+    "reason": "MOCK: 45 degrees yields greater net benefit than the raw-energy maximum at 60 degrees."
+  },
+  "farm_status": {
+    "total_panels": 1000,
+    "zones": [
+      {
+        "zone_id": "zone-01",
+        "row_ids": [
+          "row-001",
+          "row-002",
+          "row-003",
+          "row-004",
+          "row-005",
+          "row-006",
+          "row-007",
+          "row-008",
+          "row-009",
+          "row-010",
+          "row-011",
+          "row-012",
+          "row-013"
+        ],
+        "panel_count": 260
+      },
+      {
+        "zone_id": "zone-02",
+        "row_ids": [
+          "row-014",
+          "row-015",
+          "row-016",
+          "row-017",
+          "row-018",
+          "row-019",
+          "row-020",
+          "row-021",
+          "row-022",
+          "row-023",
+          "row-024",
+          "row-025"
+        ],
+        "panel_count": 240
+      },
+      {
+        "zone_id": "zone-03",
+        "row_ids": [
+          "row-026",
+          "row-027",
+          "row-028",
+          "row-029",
+          "row-030",
+          "row-031",
+          "row-032",
+          "row-033",
+          "row-034",
+          "row-035",
+          "row-036",
+          "row-037",
+          "row-038"
+        ],
+        "panel_count": 260
+      },
+      {
+        "zone_id": "zone-04",
+        "row_ids": [
+          "row-039",
+          "row-040",
+          "row-041",
+          "row-042",
+          "row-043",
+          "row-044",
+          "row-045",
+          "row-046",
+          "row-047",
+          "row-048",
+          "row-049",
+          "row-050"
+        ],
+        "panel_count": 240
+      }
+    ],
+    "rows": [
+      {
+        "row_id": "row-001",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "ROTATE"
+      },
+      {
+        "row_id": "row-002",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-003",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-004",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-005",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-006",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-007",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-008",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-009",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-010",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-011",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-012",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-013",
+        "zone_id": "zone-01",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-014",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-015",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-016",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-017",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-018",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-019",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-020",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-021",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-022",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-023",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-024",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-025",
+        "zone_id": "zone-02",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-026",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-027",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-028",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-029",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-030",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-031",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-032",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-033",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-034",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-035",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-036",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-037",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-038",
+        "zone_id": "zone-03",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-039",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-040",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-041",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-042",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-043",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-044",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-045",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-046",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-047",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-048",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 35.0,
+        "current_state": "READY",
+        "action": "HOLD"
+      },
+      {
+        "row_id": "row-049",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 0.0,
+        "current_state": "STOWED",
+        "action": "STOW"
+      },
+      {
+        "row_id": "row-050",
+        "zone_id": "zone-04",
+        "panel_count": 20,
+        "angle_deg": 0.0,
+        "current_state": "STOWED",
+        "action": "STOW"
+      }
+    ]
+  },
+  "agent_log": [
+    {
+      "timestamp": "2026-06-21T18:59:01Z",
+      "agent": "data",
+      "action": "weather_received",
+      "result": "MOCK weather fixture received"
+    },
+    {
+      "timestamp": "2026-06-21T18:59:02Z",
+      "agent": "data",
+      "action": "validation",
+      "result": "MOCK example: required fields present"
+    },
+    {
+      "timestamp": "2026-06-21T18:59:03Z",
+      "agent": "modeling",
+      "action": "comparison",
+      "result": "MOCK metrics derived from synthetic vectors"
+    },
+    {
+      "timestamp": "2026-06-21T18:59:04Z",
+      "agent": "modeling",
+      "action": "selection",
+      "result": "MOCK selected boosting adapter"
+    },
+    {
+      "timestamp": "2026-06-21T18:59:05Z",
+      "agent": "optimization",
+      "action": "candidate_comparison",
+      "result": "MOCK seven candidate predictions"
+    },
+    {
+      "timestamp": "2026-06-21T18:59:06Z",
+      "agent": "optimization",
+      "action": "recommendation",
+      "result": "MOCK 45-degree net benefit recommendation"
+    },
+    {
+      "timestamp": "2026-06-21T18:59:07Z",
+      "agent": "manager",
+      "action": "safety",
+      "result": "MOCK checks passed; no controller executed"
+    }
+  ],
+  "history": [
+    {
+      "timestamp": "2026-06-21T17:00:00Z",
+      "control_target_id": "row-001",
+      "decision": {
+        "action": "HOLD",
+        "target_angle_deg": 35.0,
+        "reason": "MOCK previous below-threshold result"
+      },
+      "net_benefit_kwh_equivalent": 0.01
+    },
+    {
+      "timestamp": "2026-06-21T18:00:00Z",
+      "control_target_id": "row-049",
+      "decision": {
+        "action": "STOW",
+        "target_angle_deg": 0.0,
+        "reason": "MOCK previous safety override"
+      },
+      "net_benefit_kwh_equivalent": 0.0
+    }
+  ],
+  "errors": []
+}

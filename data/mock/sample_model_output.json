@@ -1,0 +1,122 @@
+{
+  "timestamp": "2026-06-21T19:00:00Z",
+  "metadata": {
+    "schema_version": "0.1.0",
+    "dataset_kind": "MOCK",
+    "label_source": "mock",
+    "energy_scope": "row",
+    "prediction_horizon_minutes": 60,
+    "interval_start": "2026-06-21T19:00:00Z",
+    "control_target_id": "row-001",
+    "config_id": "prototype-row-hour-v1",
+    "assumptions": [
+      "MOCK DEVELOPMENT DATA: hand-authored weather and energy values; not measurements or physics output.",
+      "kWh is for one 20-panel row over the hour starting at interval_start.",
+      "PROTOTYPE SIMULATION ASSUMPTIONS: movement and safety coefficients are not hardware-calibrated.",
+      "Metrics are calculated from synthetic vectors, not trained-model evaluation.",
+      "Four whole-row zones contain 260/240/260/240 panels."
+    ]
+  },
+  "modeling": {
+    "selected_model": "boosting",
+    "mae": 0.08749999999999991,
+    "rmse": 0.09013878188659966,
+    "r2": 0.9935,
+    "model_comparison": [
+      {
+        "model": "linear_regression",
+        "implementation": "linear_regression",
+        "status": "MOCK",
+        "mae": 0.3999999999999999,
+        "rmse": 0.4062019202317979,
+        "r2": 0.8680000000000001
+      },
+      {
+        "model": "random_forest",
+        "implementation": "random_forest",
+        "status": "MOCK",
+        "mae": 0.17500000000000004,
+        "rmse": 0.18027756377319956,
+        "r2": 0.974
+      },
+      {
+        "model": "boosting",
+        "implementation": "xgboost",
+        "status": "MOCK",
+        "mae": 0.08749999999999991,
+        "rmse": 0.09013878188659966,
+        "r2": 0.9935
+      },
+      {
+        "model": "lstm",
+        "implementation": "lstm",
+        "status": "MOCK",
+        "mae": 0.2749999999999999,
+        "rmse": 0.278388218141501,
+        "r2": 0.9380000000000001
+      }
+    ],
+    "candidate_predictions": [
+      {
+        "angle_deg": 30,
+        "predicted_kwh": 5.65
+      },
+      {
+        "angle_deg": 35,
+        "predicted_kwh": 5.8
+      },
+      {
+        "angle_deg": 40,
+        "predicted_kwh": 5.99
+      },
+      {
+        "angle_deg": 45,
+        "predicted_kwh": 6.09
+      },
+      {
+        "angle_deg": 50,
+        "predicted_kwh": 6.1
+      },
+      {
+        "angle_deg": 55,
+        "predicted_kwh": 6.105
+      },
+      {
+        "angle_deg": 60,
+        "predicted_kwh": 6.11
+      }
+    ]
+  },
+  "evaluation_fixture": {
+    "actual_kwh": [
+      2.0,
+      3.0,
+      4.0,
+      5.0
+    ],
+    "linear_regression": [
+      2.4,
+      2.6,
+      4.3,
+      4.5
+    ],
+    "random_forest": [
+      2.2,
+      2.8,
+      4.1,
+      4.8
+    ],
+    "boosting": [
+      2.1,
+      2.9,
+      4.05,
+      4.9
+    ],
+    "lstm": [
+      2.3,
+      2.7,
+      4.2,
+      4.7
+    ]
+  }
+}
