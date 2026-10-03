@@ -159,14 +159,15 @@ class ModelMetricsBuilderTest(unittest.TestCase):
 
 
 class EvaluateSystemTest(unittest.TestCase):
-    """Scripted decisions over four hours; energy is 1 kWh per 10 degrees of tilt."""
+    """Scripted decisions over five hours; energy is 1 kWh per 10 degrees of tilt."""
 
     def setUp(self) -> None:
         script = {
-            "h1": StepOutcome("ROTATE", 45.0, safety_passed=True, severe_violation=False, max_energy_angle_deg=60.0),
-            "h2": StepOutcome("HOLD", 45.0, safety_passed=True, severe_violation=False, max_energy_angle_deg=60.0),
-            "h3": StepOutcome("STOW", 0.0, safety_passed=False, severe_violation=True, max_energy_angle_deg=60.0),
-            "h4": StepOutcome("HOLD", 0.0, safety_passed=True, severe_violation=False, max_energy_angle_deg=0.0),
+            "h1": StepOutcome("ROTATE", 45.0, safety_passed=True, severe_violation=False, raw_energy_gain_kwh=0.5),
+            "h2": StepOutcome("HOLD", 45.0, safety_passed=True, severe_violation=False, raw_energy_gain_kwh=0.03),
+            "h3": StepOutcome("STOW", 0.0, safety_passed=False, severe_violation=True, raw_energy_gain_kwh=0.4),
+            "h4": StepOutcome("HOLD", 0.0, safety_passed=True, severe_violation=False, raw_energy_gain_kwh=0.001),
+            "h5": StepOutcome("HOLD", 0.0, safety_passed=False, severe_violation=False, raw_energy_gain_kwh=None, stage_failed=True),
         }
         self.seen_angles: list[float] = []
 
@@ -180,33 +181,35 @@ class EvaluateSystemTest(unittest.TestCase):
         )
 
     def test_each_decision_sees_the_angle_left_by_the_previous_one(self) -> None:
-        self.assertEqual(self.seen_angles, [35.0, 45.0, 45.0, 0.0])
+        self.assertEqual(self.seen_angles, [35.0, 45.0, 45.0, 0.0, 0.0])
 
     def test_counts_actions(self) -> None:
         result = self.result
 
-        self.assertEqual((result.hours, result.rotate_count, result.hold_count, result.stow_count), (4, 1, 2, 1))
+        self.assertEqual((result.hours, result.rotate_count, result.hold_count, result.stow_count), (5, 1, 3, 1))
 
     def test_energy_cost_and_net_benefit_totals(self) -> None:
         result = self.result
 
-        self.assertAlmostEqual(result.baseline_kwh, 4 * 3.5)
-        self.assertAlmostEqual(result.optimized_kwh, 4.5 + 4.5 + 0.0 + 0.0)
-        self.assertAlmostEqual(result.energy_gain_kwh, 9.0 - 14.0)
+        self.assertAlmostEqual(result.baseline_kwh, 5 * 3.5)
+        self.assertAlmostEqual(result.optimized_kwh, 4.5 + 4.5 + 0.0 + 0.0 + 0.0)
+        self.assertAlmostEqual(result.energy_gain_kwh, 9.0 - 17.5)
         self.assertAlmostEqual(result.movement_cost_kwh_equivalent, (10 + 45) * 0.003)
-        self.assertAlmostEqual(result.net_benefit_kwh_equivalent, -5.0 - 0.165)
+        self.assertAlmostEqual(result.net_benefit_kwh_equivalent, -8.5 - 0.165)
         self.assertEqual(result.energy_source, "test formula")
 
     def test_counts_avoided_moves_and_safety_events(self) -> None:
         result = self.result
 
-        # h2: a raw-energy tracker wanted 60 deg but the safe decision held. h4: nothing to avoid.
+        # h2: a raw gain of 0.03 clears the 0.02 threshold but the decision held. h4: 0.001 is noise, not a move.
+        # h5: a HOLD forced by a failed stage is not an avoided move.
         self.assertEqual(result.unnecessary_moves_avoided, 1)
         self.assertEqual(result.severe_safety_events, 1)
         self.assertEqual(result.unsafe_rotations, 0)
+        self.assertEqual(result.error_hours, 1)
 
     def test_flags_a_rotation_issued_despite_failed_safety(self) -> None:
-        unsafe = StepOutcome("ROTATE", 45.0, safety_passed=False, severe_violation=False, max_energy_angle_deg=45.0)
+        unsafe = StepOutcome("ROTATE", 45.0, safety_passed=False, severe_violation=False, raw_energy_gain_kwh=0.5)
 
         result = evaluate_system(
             [{"timestamp": "h1", "panel_angle_deg": 35.0}], lambda weather: unsafe, lambda weather, angle: 1.0,

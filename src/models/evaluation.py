@@ -195,7 +195,8 @@ class StepOutcome:
     target_angle_deg: float
     safety_passed: bool
     severe_violation: bool
-    max_energy_angle_deg: float | None
+    raw_energy_gain_kwh: float | None
+    stage_failed: bool = False
 
 
 @dataclass(frozen=True)
@@ -215,6 +216,7 @@ class SystemEvaluation:
     unnecessary_moves_avoided: int
     severe_safety_events: int
     unsafe_rotations: int
+    error_hours: int
 
 
 @dataclass(frozen=True)
@@ -240,9 +242,14 @@ def evaluate_system(
 
     Baseline: the row stays at `initial_angle_deg` for every hour. Optimized: the
     row follows each decision (ROTATE and STOW move it and pay movement cost; the
-    move is treated as instantaneous at the start of the hour). An unnecessary
-    move avoided is an hour where a raw-energy tracker would have moved (the
-    max-kWh candidate is not the current angle) but the safe decision was HOLD.
+    move is treated as instantaneous at the start of the hour). The baseline
+    never stows, so storm hours cost the optimized row energy by design.
+
+    An unnecessary move avoided is a HOLD hour with passing safety in which a
+    tracker that ignores movement cost would still have moved: the best
+    candidate's predicted energy gain exceeded `min_net_benefit_kwh_equivalent`.
+    `error_hours` counts hours where a stage failed and the decision is a
+    fallback; a replay with error hours is not a clean measurement.
     """
     steps: list[_Step] = []
     angle = initial_angle_deg
@@ -272,9 +279,10 @@ def evaluate_system(
         rotate_count=_count(steps, "ROTATE"),
         hold_count=_count(steps, "HOLD"),
         stow_count=_count(steps, "STOW"),
-        unnecessary_moves_avoided=sum(1 for step in steps if _avoided_move(step)),
+        unnecessary_moves_avoided=sum(1 for step in steps if _avoided_move(step.outcome, config)),
         severe_safety_events=sum(1 for step in steps if step.outcome.severe_violation),
         unsafe_rotations=sum(1 for step in steps if step.outcome.action == "ROTATE" and not step.outcome.safety_passed),
+        error_hours=sum(1 for step in steps if step.outcome.stage_failed),
     )
 
 
@@ -282,7 +290,7 @@ def _count(steps: Sequence[_Step], action: str) -> int:
     return sum(1 for step in steps if step.outcome.action == action)
 
 
-def _avoided_move(step: _Step) -> bool:
-    outcome = step.outcome
-    wanted_to_move = outcome.max_energy_angle_deg is not None and outcome.max_energy_angle_deg != step.angle_before_deg
+def _avoided_move(outcome: StepOutcome, config: SimulationConfig) -> bool:
+    raw_gain = outcome.raw_energy_gain_kwh
+    wanted_to_move = raw_gain is not None and raw_gain > config.min_net_benefit_kwh_equivalent
     return outcome.action == "HOLD" and outcome.safety_passed and wanted_to_move

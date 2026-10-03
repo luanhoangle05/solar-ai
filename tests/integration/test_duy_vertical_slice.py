@@ -243,8 +243,11 @@ class SystemEvaluationReplayTest(unittest.TestCase):
         self.assertEqual(self.result.stow_count, storm_hours)
         self.assertEqual(self.result.unsafe_rotations, 0)
 
-    def test_some_raw_energy_moves_are_avoided(self) -> None:
-        self.assertGreater(self.result.unnecessary_moves_avoided, 0)
+    def test_replay_has_no_failed_stages(self) -> None:
+        self.assertEqual(self.result.error_hours, 0)
+
+    def test_avoided_moves_never_exceed_hold_hours(self) -> None:
+        self.assertLessEqual(self.result.unnecessary_moves_avoided, self.result.hold_count)
 
 
 def _unavailable(model: str) -> ModelCandidate:

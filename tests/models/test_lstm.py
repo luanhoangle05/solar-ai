@@ -11,7 +11,7 @@ import numpy as np
 from scripts.generate_example_data import DEFAULT_EXAMPLE_CONFIG, generate_rows
 from src.common.schema import FEATURE_COLUMNS
 from src.common.tool_contracts import EnergyPredictor, ToolError
-from src.models.advanced.features import split_for_early_stopping
+from src.models.advanced.features import feature_matrix, split_for_early_stopping
 from src.models.advanced.lstm import LstmConfig, build_sequences, train_lstm
 from src.models.evaluation import chronological_split, evaluate_predictor, to_features
 
@@ -131,6 +131,22 @@ class LstmSmokeTest(unittest.TestCase):
 
         self.assertEqual(
             truncated.predict_kwh(self.noon, (35.0, 50.0), metadata=METADATA),
+            self.predictor.predict_kwh(self.noon, (35.0, 50.0), metadata=METADATA),
+        )
+
+    def test_scaling_is_fitted_on_fit_rows_only(self) -> None:
+        scaler = self.predictor._scaler
+
+        np.testing.assert_allclose(scaler.mean, feature_matrix(self.fit_rows).mean(axis=0))
+        self.assertEqual(scaler.target_scale, max(row["actual_kwh"] for row in self.fit_rows))
+        self.assertFalse(np.allclose(scaler.mean, feature_matrix(self.split.train).mean(axis=0)))
+
+    def test_later_labels_cannot_influence_training(self) -> None:
+        relabeled_history = [{**row, "actual_kwh": 999.0} for row in self.rows]
+        retrained = train_lstm(self.fit_rows, self.stop_rows, relabeled_history, SMOKE_MODEL)
+
+        self.assertEqual(
+            retrained.predict_kwh(self.noon, (35.0, 50.0), metadata=METADATA),
             self.predictor.predict_kwh(self.noon, (35.0, 50.0), metadata=METADATA),
         )
 

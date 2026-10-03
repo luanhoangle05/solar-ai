@@ -160,7 +160,10 @@ def replay_test_window(
     REPLAY ASSUMPTIONS: each hour's recorded weather is treated as a fresh, valid
     forecast for that hour, and row state is not simulated (the panel-status check
     is reported as not run). By default energy is the selected model's prediction,
-    not a measurement; pass `energy_at` to score against another energy source.
+    not a measurement, and it grades the model's choices with the model's own
+    numbers, so it is optimistic; pass `energy_at` to score against another
+    energy source. A sequence model's look-back window holds the dataset's
+    recorded angles, not the replayed trajectory.
     """
     try:
         test_rows = chronological_split(load_weather_rows(source.path)).test
@@ -195,15 +198,17 @@ def replay_test_window(
 
 
 def _step_outcome(state: AgentState) -> StepOutcome:
-    safety, decision, modeling = state["safety"], state["decision"], state["modeling"]
-    # The angle a raw-energy tracker would pick: highest predicted kWh, lowest angle on ties.
-    max_energy = None if modeling is None else min(modeling["candidate_predictions"], key=lambda entry: (-entry["predicted_kwh"], entry["angle_deg"]))
+    safety, decision, optimization = state["safety"], state["decision"], state["optimization"]
+    candidates = [] if state["modeling"] is None else state["modeling"]["candidate_predictions"]
+    # What a tracker that ignores movement cost would gain: best predicted kWh minus the stay prediction.
+    raw_gain = None if optimization is None else max(entry["predicted_kwh"] for entry in candidates) - optimization["baseline_kwh"]
     return StepOutcome(
         action=decision["action"],
         target_angle_deg=decision["target_angle_deg"],
         safety_passed=safety["passed"],
         severe_violation=any(not check["passed"] and check["severity"] == "SEVERE" for check in safety["checks"]),
-        max_energy_angle_deg=None if max_energy is None else max_energy["angle_deg"],
+        raw_energy_gain_kwh=raw_gain,
+        stage_failed=bool(state["errors"]),
     )
 
 

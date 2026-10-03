@@ -29,6 +29,12 @@ DEFAULT_OUTPUT = EXAMPLE_DATASET_PATH.parent / "system_evaluation.json"
 CONTROL_TARGET_ID = "row-001"
 INITIAL_ANGLE_DEG = 35.0
 EXAMPLE_FORMULA_SOURCE = "example-data formula, noise-free (data/example/README.md)"
+REPLAY_NOTES = [
+    "A 'model-predicted' replay grades the selected model's choices with that model's own predictions, so its gain is optimistic.",
+    "The baseline row never stows; hours stowed for safety lower optimized energy by design.",
+    "Each hour is decided on its own one-hour horizon; a move is not credited for energy gained in later hours.",
+    "error_hours above zero means some decisions were fallbacks after a failed stage.",
+]
 
 
 def build_report(source: DatasetSource) -> dict:
@@ -37,14 +43,15 @@ def build_report(source: DatasetSource) -> dict:
     tools = build_modeling_tools(source, metadata=metadata)
     validation = tools.evaluate_models()
     selected = tools.select_best_model(validation)
-    replays = [replay_test_window(source, tools, DEFAULT_CONFIG, initial_angle_deg=INITIAL_ANGLE_DEG, control_target_id=CONTROL_TARGET_ID)]
+    replays = []
     if source.path.resolve() == EXAMPLE_DATASET_PATH.resolve():
-        # Only the synthetic dataset has a known generating formula to score decisions against.
+        # Only the synthetic dataset has a known generating formula to score decisions against; it leads the report.
         replays.append(replay_test_window(
             source, tools, DEFAULT_CONFIG, initial_angle_deg=INITIAL_ANGLE_DEG, control_target_id=CONTROL_TARGET_ID,
             energy_at=lambda weather, angle: expected_row_kwh({**weather, "panel_angle_deg": angle}, DEFAULT_EXAMPLE_CONFIG),
             energy_source=EXAMPLE_FORMULA_SOURCE,
         ))
+    replays.append(replay_test_window(source, tools, DEFAULT_CONFIG, initial_angle_deg=INITIAL_ANGLE_DEG, control_target_id=CONTROL_TARGET_ID))
     return {
         "metadata": metadata,
         "windows": {name: {"rows": len(rows), "first": rows[0]["timestamp"], "last": rows[-1]["timestamp"]} for name, rows in dataclasses.asdict(split).items()},
@@ -54,6 +61,7 @@ def build_report(source: DatasetSource) -> dict:
         "selection_reason": selection_reason(validation, selected),
         "test_metrics": _test_metrics(tools, validation, split.test, metadata),
         "replay_baseline": f"row fixed at {INITIAL_ANGLE_DEG:g} deg for every test hour",
+        "replay_notes": REPLAY_NOTES,
         "system_evaluation": [dataclasses.asdict(replay) for replay in replays],
     }
 
@@ -85,10 +93,10 @@ def main() -> None:
     for replay in report["system_evaluation"]:
         LOGGER.info(
             "[%s] %d h: baseline %.1f kWh, optimized %.1f kWh, gain %+.1f, movement cost %.2f, net %+.1f kWh-eq; "
-            "ROTATE %d / HOLD %d / STOW %d; moves avoided %d; severe events %d; unsafe rotations %d",
+            "ROTATE %d / HOLD %d / STOW %d; moves avoided %d; severe events %d; unsafe rotations %d; error hours %d",
             replay["energy_source"], replay["hours"], replay["baseline_kwh"], replay["optimized_kwh"], replay["energy_gain_kwh"],
             replay["movement_cost_kwh_equivalent"], replay["net_benefit_kwh_equivalent"], replay["rotate_count"], replay["hold_count"],
-            replay["stow_count"], replay["unnecessary_moves_avoided"], replay["severe_safety_events"], replay["unsafe_rotations"],
+            replay["stow_count"], replay["unnecessary_moves_avoided"], replay["severe_safety_events"], replay["unsafe_rotations"], replay["error_hours"],
         )
     LOGGER.info("Wrote %s", args.output)
 

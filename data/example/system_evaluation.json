@@ -108,22 +108,13 @@
     }
   ],
   "replay_baseline": "row fixed at 35 deg for every test hour",
+  "replay_notes": [
+    "A 'model-predicted' replay grades the selected model's choices with that model's own predictions, so its gain is optimistic.",
+    "The baseline row never stows; hours stowed for safety lower optimized energy by design.",
+    "Each hour is decided on its own one-hour horizon; a move is not credited for energy gained in later hours.",
+    "error_hours above zero means some decisions were fallbacks after a failed stage."
+  ],
   "system_evaluation": [
-    {
-      "hours": 663,
-      "energy_source": "model-predicted (boosting)",
-      "baseline_kwh": 1008.5532382848432,
-      "optimized_kwh": 1026.532238110205,
-      "energy_gain_kwh": 17.978999825361825,
-      "movement_cost_kwh_equivalent": 0.015,
-      "net_benefit_kwh_equivalent": 17.963999825361824,
-      "rotate_count": 1,
-      "hold_count": 662,
-      "stow_count": 0,
-      "unnecessary_moves_avoided": 81,
-      "severe_safety_events": 0,
-      "unsafe_rotations": 0
-    },
     {
       "hours": 663,
       "energy_source": "example-data formula, noise-free (data/example/README.md)",
@@ -135,9 +126,26 @@
       "rotate_count": 1,
       "hold_count": 662,
       "stow_count": 0,
-      "unnecessary_moves_avoided": 81,
+      "unnecessary_moves_avoided": 2,
       "severe_safety_events": 0,
-      "unsafe_rotations": 0
+      "unsafe_rotations": 0,
+      "error_hours": 0
+    },
+    {
+      "hours": 663,
+      "energy_source": "model-predicted (boosting)",
+      "baseline_kwh": 1008.5532382848432,
+      "optimized_kwh": 1026.532238110205,
+      "energy_gain_kwh": 17.978999825361825,
+      "movement_cost_kwh_equivalent": 0.015,
+      "net_benefit_kwh_equivalent": 17.963999825361824,
+      "rotate_count": 1,
+      "hold_count": 662,
+      "stow_count": 0,
+      "unnecessary_moves_avoided": 2,
+      "severe_safety_events": 0,
+      "unsafe_rotations": 0,
+      "error_hours": 0
     }
   ]
 }
