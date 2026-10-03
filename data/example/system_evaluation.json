@@ -61,19 +61,18 @@
     {
       "model": "lstm",
       "implementation": "pytorch",
-      "status": "UNAVAILABLE",
-      "mae": null,
-      "rmse": null,
-      "r2": null
+      "status": "MOCK",
+      "mae": 0.12835291585345188,
+      "rmse": 0.20126555555769063,
+      "r2": 0.9884534416247507
     }
   ],
   "unavailable_reasons": {
     "linear_regression": "adapter not delivered yet",
-    "random_forest": "adapter not delivered yet",
-    "lstm": "adapter not delivered yet"
+    "random_forest": "adapter not delivered yet"
   },
   "selected_model": "boosting",
-  "selection_reason": "Selected boosting (xgboost): lowest validation RMSE 0.1375 kWh among 1 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
+  "selection_reason": "Selected boosting (xgboost): lowest validation RMSE 0.1375 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
   "test_metrics": [
     {
       "model": "linear_regression",
@@ -102,10 +101,10 @@
     {
       "model": "lstm",
       "implementation": "pytorch",
-      "status": "UNAVAILABLE",
-      "mae": null,
-      "rmse": null,
-      "r2": null
+      "status": "MOCK",
+      "mae": 0.19972195779462568,
+      "rmse": 0.3419268207998421,
+      "r2": 0.9586094228785822
     }
   ],
   "replay_baseline": "row fixed at 35 deg for every test hour",

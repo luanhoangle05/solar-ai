@@ -18,7 +18,8 @@ from src.common.agent_contracts import OrchestratorContract
 from src.common.config import ENERGY_SCOPE, PREDICTION_HORIZON_MINUTES, SCHEMA_VERSION, SimulationConfig
 from src.common.schema import MODEL_NAMES, AgentState, FrontendData, Metadata, WeatherFeatures, validate_agent_state, validate_frontend_data
 from src.common.tool_contracts import ToolError
-from src.models.advanced import boosting
+from src.models.advanced import boosting, lstm
+from src.models.advanced.features import split_for_early_stopping
 from src.models.data_loader import DatasetError, DatasetSource, load_weather_rows
 from src.models.evaluation import (
     EvaluatedModelingTools, ModelCandidate, StepOutcome, SystemEvaluation, chronological_split, evaluate_system, to_features,
@@ -26,7 +27,7 @@ from src.models.evaluation import (
 from src.models.optimizer import DeterministicOptimizationTools
 
 
-DEFAULT_IMPLEMENTATIONS = {"linear_regression": "linear_regression", "random_forest": "random_forest", "boosting": boosting.IMPLEMENTATION, "lstm": "pytorch"}
+DEFAULT_IMPLEMENTATIONS = {"linear_regression": "linear_regression", "random_forest": "random_forest", "boosting": boosting.IMPLEMENTATION, "lstm": lstm.IMPLEMENTATION}
 MOCK_DATA_ASSUMPTION = "SYNTHETIC EXAMPLE DATA: weather and energy labels are simulated from a documented formula (data/example/README.md); not measurements."
 LIVE_DATA_ASSUMPTION = "Dataset provenance is declared by the data pipeline (label_source)."
 COMMON_ASSUMPTIONS = (
@@ -65,16 +66,20 @@ def build_metadata(source: DatasetSource, *, interval_start: str, control_target
 def build_modeling_tools(source: DatasetSource, *, metadata: Metadata, extra_candidates: Sequence[ModelCandidate] = ()) -> EvaluatedModelingTools:
     """Train Duy's models on the train window and score every contract model on the validation window.
 
-    `extra_candidates` is where Luan's baseline adapters (and later the LSTM)
-    plug in. A model nobody supplies is reported UNAVAILABLE, never estimated.
+    `extra_candidates` is where Luan's baseline adapters plug in; a candidate
+    supplied for `boosting` or `lstm` replaces the one trained here. A model
+    nobody supplies is reported UNAVAILABLE, never estimated.
     """
     try:
-        split = chronological_split(load_weather_rows(source.path))
+        rows = load_weather_rows(source.path)
+        split = chronological_split(rows)
     except (DatasetError, ValueError) as exc:
         raise ToolError(f"Training data unavailable: {exc}") from exc
     supplied = {candidate.model: candidate for candidate in extra_candidates}
     if boosting.MODEL_NAME not in supplied:
         supplied[boosting.MODEL_NAME] = _train_boosting_candidate(split.train)
+    if lstm.MODEL_NAME not in supplied:
+        supplied[lstm.MODEL_NAME] = _train_lstm_candidate(split.train, rows)
     candidates = [
         supplied.get(model) or ModelCandidate(model, DEFAULT_IMPLEMENTATIONS[model], unavailable_reason="adapter not delivered yet")
         for model in MODEL_NAMES
@@ -85,10 +90,19 @@ def build_modeling_tools(source: DatasetSource, *, metadata: Metadata, extra_can
 def _train_boosting_candidate(train_rows: Sequence) -> ModelCandidate:
     """Early stopping uses the tail of the train window, so validation stays unseen for selection."""
     try:
-        predictor = boosting.train_boosting(*boosting.split_for_early_stopping(train_rows))
+        predictor = boosting.train_boosting(*split_for_early_stopping(train_rows))
     except ToolError as exc:
         return ModelCandidate(boosting.MODEL_NAME, boosting.IMPLEMENTATION, unavailable_reason=f"training failed: {exc}")
     return ModelCandidate(boosting.MODEL_NAME, boosting.IMPLEMENTATION, predictor=predictor)
+
+
+def _train_lstm_candidate(train_rows: Sequence, all_rows: Sequence) -> ModelCandidate:
+    """The adapter keeps recorded features (never labels) as look-back history for prediction time."""
+    try:
+        predictor = lstm.train_lstm(*split_for_early_stopping(train_rows), [to_features(row) for row in all_rows])
+    except ToolError as exc:
+        return ModelCandidate(lstm.MODEL_NAME, lstm.IMPLEMENTATION, unavailable_reason=f"training failed: {exc}")
+    return ModelCandidate(lstm.MODEL_NAME, lstm.IMPLEMENTATION, predictor=predictor)
 
 
 def build_agents(modeling_tools: EvaluatedModelingTools, config: SimulationConfig, *, row_status: RowStatusLookup | None = None, clock: Clock = utc_now_iso) -> DuyAgents:

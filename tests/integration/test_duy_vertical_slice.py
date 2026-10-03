@@ -111,12 +111,14 @@ class DuyVerticalSliceTest(unittest.TestCase):
         self.assertEqual((payload["metadata"]["dataset_kind"], payload["metadata"]["label_source"]), ("MOCK", "mock"))
         self.assertIn("SYNTHETIC EXAMPLE DATA", payload["metadata"]["assumptions"][0])
 
-    def test_boosting_is_selected_and_missing_models_are_unavailable(self) -> None:
+    def test_lowest_rmse_model_is_selected_and_undelivered_baselines_are_unavailable(self) -> None:
         payload, _ = self.run_slice()
 
-        statuses = {entry["model"]: entry["status"] for entry in payload["model_comparison"]}
-        self.assertEqual(payload["selected_model"], "boosting")
-        self.assertEqual(statuses, {"linear_regression": "UNAVAILABLE", "random_forest": "UNAVAILABLE", "boosting": "MOCK", "lstm": "UNAVAILABLE"})
+        by_model = {entry["model"]: entry for entry in payload["model_comparison"]}
+        statuses = {model: entry["status"] for model, entry in by_model.items()}
+        self.assertEqual(statuses, {"linear_regression": "UNAVAILABLE", "random_forest": "UNAVAILABLE", "boosting": "MOCK", "lstm": "MOCK"})
+        expected = "boosting" if by_model["boosting"]["rmse"] <= by_model["lstm"]["rmse"] else "lstm"
+        self.assertEqual(payload["selected_model"], expected)
 
     def test_rotates_a_flat_panel_toward_the_sun_when_it_pays(self) -> None:
         payload, _ = self.run_slice(panel_angle=0.0)
@@ -163,7 +165,7 @@ class DuyVerticalSliceTest(unittest.TestCase):
         self.assertEqual(payload["decision"]["action"], "HOLD")
 
     def test_model_failure_still_produces_a_safe_valid_payload(self) -> None:
-        no_models = build_modeling_tools(self.source, metadata=self.metadata, extra_candidates=[_unavailable("boosting")])
+        no_models = build_modeling_tools(self.source, metadata=self.metadata, extra_candidates=[_unavailable("boosting"), _unavailable("lstm")])
 
         payload, state = self.run_slice(modeling_tools=no_models)
 
@@ -222,7 +224,7 @@ class SystemEvaluationReplayTest(unittest.TestCase):
         self.assertGreater(result.hold_count, 0)
 
     def test_energy_is_labeled_as_model_predicted(self) -> None:
-        self.assertEqual(self.result.energy_source, "model-predicted (boosting)")
+        self.assertRegex(self.result.energy_source, r"^model-predicted \((boosting|lstm)\)$")
 
     def test_totals_are_consistent(self) -> None:
         result = self.result

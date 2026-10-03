@@ -14,6 +14,7 @@ from src.common.tool_contracts import ToolError
 
 PANEL_ANGLE_COLUMN = "panel_angle_deg"
 LABEL_COLUMN = "actual_kwh"
+EARLY_STOPPING_FRACTION = 0.15
 
 
 def feature_matrix(rows: Sequence[WeatherFeatures]) -> np.ndarray:
@@ -34,3 +35,13 @@ def label_vector(rows: Sequence[WeatherRow]) -> np.ndarray:
 def at_candidate_angles(weather: WeatherFeatures, candidate_angles_deg: Sequence[float]) -> list[WeatherFeatures]:
     """Copies of the weather with each candidate angle substituted for the current one."""
     return [{**weather, PANEL_ANGLE_COLUMN: angle} for angle in candidate_angles_deg]
+
+
+def split_for_early_stopping(train_rows: Sequence[WeatherRow], fraction: float = EARLY_STOPPING_FRACTION) -> tuple[Sequence[WeatherRow], Sequence[WeatherRow]]:
+    """(fit rows, early-stopping rows): the latest `fraction` of the train window is held for stopping.
+
+    Both advanced models stop on this slice, so the validation window stays
+    unseen until model selection.
+    """
+    cut = len(train_rows) - int(len(train_rows) * fraction)
+    return train_rows[:cut], train_rows[cut:]
