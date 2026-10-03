@@ -136,9 +136,13 @@ class EvaluatedModelingTools:
         self._validation_rows = tuple(validation_rows)
         self._metadata = metadata
         self._unavailable_reasons: dict[ModelName, str] = {}
+        self._comparison: tuple[ModelMetrics, ...] | None = None
 
     def evaluate_models(self) -> list[ModelMetrics]:
-        return [self._evaluate(self._candidates[model]) for model in MODEL_NAMES]
+        """Score every model once; the trained adapters and the window do not change afterwards."""
+        if self._comparison is None:
+            self._comparison = tuple(self._evaluate(self._candidates[model]) for model in MODEL_NAMES)
+        return [dict(entry) for entry in self._comparison]
 
     def select_best_model(self, comparison: list[ModelMetrics]) -> ModelName:
         return select_best_model(comparison)
