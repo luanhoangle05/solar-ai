@@ -13,6 +13,9 @@ from src.common.schema import CandidatePrediction, OptimizationResult
 from src.common.tool_contracts import MovementCost, ToolError
 from src.models.cost_simulation import calculate_movement_cost, calculate_net_benefit
 
+# Net benefits closer than this are a tie, so float noise cannot defeat the tie rules.
+NET_BENEFIT_TIE_DECIMALS = 9
+
 
 def generate_candidate_angles(current_angle_deg: float, *, config: SimulationConfig) -> tuple[float, ...]:
     """Configured candidates inside the angle limits, plus the stay angle, ascending."""
@@ -53,7 +56,7 @@ def _evaluate_candidate(angle_deg: float, predicted_kwh: float, current_angle_de
 def _preference(option: OptimizationResult) -> tuple[float, float, float]:
     """Sort key: highest net benefit, then least movement, then lowest angle."""
     movement = abs(option["recommended_angle_deg"] - option["current_angle_deg"])
-    return (-option["net_benefit_kwh_equivalent"], movement, option["recommended_angle_deg"])
+    return (-round(option["net_benefit_kwh_equivalent"], NET_BENEFIT_TIE_DECIMALS), movement, option["recommended_angle_deg"])
 
 
 def _validated_predictions(predictions: Sequence[CandidatePrediction]) -> dict[float, float]:

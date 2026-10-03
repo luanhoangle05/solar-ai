@@ -10,6 +10,7 @@ These are PROTOTYPE SIMULATION rules. `send_control_command` is simulation-only;
 no hardware command exists in this codebase.
 """
 
+import math
 from typing import Callable, TypedDict
 
 from src.agents.trace import Clock, TraceRecorder, utc_now_iso
@@ -49,6 +50,8 @@ class DeterministicSafetyTools:
 
     def check_wind_safety(self, weather: WeatherFeatures, *, config: SimulationConfig) -> SafetyCheck:
         wind, gust = weather["wind_speed_kmh"], weather["wind_gust_kmh"]
+        if not (math.isfinite(wind) and math.isfinite(gust)):
+            return _check("wind_safety", False, SEVERE, f"Wind reading is not a finite number (wind {wind}, gust {gust})")
         if wind > config.max_wind_speed_kmh:
             return _check("wind_safety", False, SEVERE, f"Wind {wind:g} km/h exceeds the {config.max_wind_speed_kmh:g} km/h limit")
         if gust > config.max_wind_gust_kmh:
@@ -56,7 +59,7 @@ class DeterministicSafetyTools:
         return _check("wind_safety", True, SEVERE, f"Wind {wind:g} km/h and gust {gust:g} km/h are within limits ({config.max_wind_speed_kmh:g}/{config.max_wind_gust_kmh:g})")
 
     def check_angle_limits(self, angle_deg: float, *, config: SimulationConfig) -> SafetyCheck:
-        within = config.min_angle_deg <= angle_deg <= config.max_angle_deg
+        within = math.isfinite(angle_deg) and config.min_angle_deg <= angle_deg <= config.max_angle_deg
         relation = "is within" if within else "is outside"
         return _check("angle_limits", within, SEVERE, f"Target angle {angle_deg:g} deg {relation} [{config.min_angle_deg:g}, {config.max_angle_deg:g}] deg")
 
@@ -64,8 +67,8 @@ class DeterministicSafetyTools:
         age = data["forecast_age_minutes"]
         if data["status"] not in RELIABLE_DATA_STATUSES:
             return _check("data_freshness", False, BLOCK_ROTATE, f"Data status is {data['status']}: {'; '.join(data['issues']) or 'no detail given'}")
-        if age is None:
-            return _check("data_freshness", False, BLOCK_ROTATE, "Forecast age is unknown")
+        if age is None or not math.isfinite(age) or age < 0:
+            return _check("data_freshness", False, BLOCK_ROTATE, f"Forecast age is unknown or invalid ({age})")
         if age > config.max_forecast_age_minutes:
             return _check("data_freshness", False, BLOCK_ROTATE, f"Forecast is {age:g} min old; limit is {config.max_forecast_age_minutes:g} min")
         return _check("data_freshness", True, BLOCK_ROTATE, f"Data is {data['status']} and {age:g} min old (limit {config.max_forecast_age_minutes:g} min)")
@@ -115,7 +118,8 @@ def _economic_decision(optimization: OptimizationResult, current_angle_deg: floa
     recommended = optimization["recommended_angle_deg"]
     if recommended == current_angle_deg:
         return _decision("HOLD", current_angle_deg, f"Holding at {current_angle_deg:g} deg: staying has the best net benefit.")
-    if net <= threshold:
+    # A move must always pay for itself, even if a config sets a negative threshold.
+    if not net > max(threshold, 0.0):
         return _decision("HOLD", current_angle_deg, f"Holding at {current_angle_deg:g} deg: best net benefit {net:+.4f} kWh-eq does not exceed the {threshold:g} kWh-eq threshold.")
     return _decision("ROTATE", recommended, f"Rotate to {recommended:g} deg: net benefit {net:+.4f} kWh-eq exceeds the {threshold:g} kWh-eq threshold and all safety checks passed.")
 
@@ -139,7 +143,7 @@ class ManagerAgent:
         recorder = TraceRecorder(AGENT_NAME, self._clock)
         target_id = state["metadata"]["control_target_id"]
         try:
-            row = None if self._row_status is None else self._row_status(target_id)
+            row = self._observe_row(target_id)
             current_angle = self._current_angle(state, row)
             checks = self._run_checks(recorder, state, row, current_angle)
             safety, decision = recorder.call(
@@ -159,14 +163,35 @@ class ManagerAgent:
             raise recorder.fail("SAFETY_FAILED", f"Safety evaluation failed; no command issued: {exc}") from exc
         return {"safety": safety, "decision": decision, **recorder.trace()}
 
+    def _observe_row(self, target_id: str) -> RowStatus | None:
+        if self._row_status is None:
+            return None
+        try:
+            return self._row_status(target_id)
+        except Exception as exc:
+            raise ToolError(f"Row status lookup failed for {target_id}: {exc!r}") from exc
+
     @staticmethod
     def _current_angle(state: AgentState, row: RowStatus | None) -> float:
-        """The observed angle; never assumed when no source reports it."""
-        if state["weather"] is not None:
-            return state["weather"]["panel_angle_deg"]
+        """The observed angle (row snapshot first); never assumed when no source reports it."""
         if row is not None:
             return row["angle_deg"]
+        if state["weather"] is not None:
+            return state["weather"]["panel_angle_deg"]
         raise ToolError("Current row angle is unknown: no weather features and no row status source")
+
+    @staticmethod
+    def _angle_consistency(state: AgentState, current_angle: float) -> SafetyCheck:
+        """Gain and cost are only meaningful if every stage started from the observed angle."""
+        weather, optimization = state["weather"], state["optimization"]
+        assumed = {
+            "weather features": None if weather is None else weather["panel_angle_deg"],
+            "optimization": None if optimization is None else optimization["current_angle_deg"],
+        }
+        mismatched = [f"{source} assumed {angle:g} deg" for source, angle in assumed.items() if angle is not None and angle != current_angle]
+        if mismatched:
+            return _check("angle_consistency", False, BLOCK_ROTATE, f"Observed row angle is {current_angle:g} deg but {'; '.join(mismatched)}")
+        return _check("angle_consistency", True, BLOCK_ROTATE, f"All stages used the observed row angle {current_angle:g} deg")
 
     def _run_checks(self, recorder: TraceRecorder, state: AgentState, row: RowStatus | None, current_angle: float) -> list[SafetyCheck]:
         weather, data, modeling, optimization = state["weather"], state["data"], state["modeling"], state["optimization"]
@@ -178,6 +203,7 @@ class ManagerAgent:
             _check("data_freshness", False, BLOCK_ROTATE, "Data Agent report is unavailable") if data is None
             else self._call_check(recorder, "check_data_freshness", lambda: self.tools.check_data_freshness(data, config=self.config)),
         ]
+        checks.append(self._angle_consistency(state, current_angle))
         if row is None:
             recorder.log("panel_status", "Check not run: no row status source is configured for this run")
         else:

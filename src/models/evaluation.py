@@ -7,10 +7,12 @@ Selection is a deterministic rule, never an LLM judgement.
 
 from dataclasses import dataclass
 import math
-from typing import Sequence, TypeVar
+from typing import Callable, Sequence, TypeVar
 
+from src.common.config import SimulationConfig
 from src.common.schema import MODEL_NAMES, Metadata, ModelMetrics, ModelName, WeatherFeatures, WeatherRow
 from src.common.tool_contracts import EnergyPredictor, ToolError
+from src.models.cost_simulation import calculate_movement_cost, calculate_net_benefit
 
 
 TRAIN_FRACTION = 0.7
@@ -76,11 +78,20 @@ def to_features(row: WeatherRow) -> WeatherFeatures:
 
 def evaluate_predictor(predictor: EnergyPredictor, rows: Sequence[WeatherRow], *, metadata: Metadata) -> RegressionMetrics:
     """Score one model on labeled rows, each at the panel angle it was recorded at."""
-    predicted = [
-        predictor.predict_kwh(to_features(row), (row["panel_angle_deg"],), metadata=metadata)[0]["predicted_kwh"]
-        for row in rows
-    ]
+    predicted = [_predict_at_recorded_angle(predictor, row, metadata) for row in rows]
     return compute_metrics([row[LABEL_COLUMN] for row in rows], predicted)
+
+
+def _predict_at_recorded_angle(predictor: EnergyPredictor, row: WeatherRow, metadata: Metadata) -> float:
+    angle = row["panel_angle_deg"]
+    try:
+        (entry,) = predictor.predict_kwh(to_features(row), (angle,), metadata=metadata)
+        predicted_angle, predicted_kwh = entry["angle_deg"], float(entry["predicted_kwh"])
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise ToolError(f"Predictor returned a malformed result at {row['timestamp']}: {exc!r}") from exc
+    if predicted_angle != angle or not math.isfinite(predicted_kwh) or predicted_kwh < 0:
+        raise ToolError(f"Predictor returned an invalid prediction at {row['timestamp']}: {entry}")
+    return predicted_kwh
 
 
 def build_model_metrics(model: ModelName, implementation: str, metrics: RegressionMetrics, *, dataset_kind: str) -> ModelMetrics:
@@ -174,3 +185,104 @@ class EvaluatedModelingTools:
 
 def _available(comparison: Sequence[ModelMetrics]) -> list[ModelMetrics]:
     return [entry for entry in comparison if entry["status"] != "UNAVAILABLE" and entry["rmse"] is not None]
+
+
+@dataclass(frozen=True)
+class StepOutcome:
+    """What the decision pipeline concluded for one hour."""
+
+    action: str
+    target_angle_deg: float
+    safety_passed: bool
+    severe_violation: bool
+    max_energy_angle_deg: float | None
+
+
+@dataclass(frozen=True)
+class SystemEvaluation:
+    """Replay totals in kWh-equivalent for one row. `energy_source` says where the kWh come from."""
+
+    hours: int
+    energy_source: str
+    baseline_kwh: float
+    optimized_kwh: float
+    energy_gain_kwh: float
+    movement_cost_kwh_equivalent: float
+    net_benefit_kwh_equivalent: float
+    rotate_count: int
+    hold_count: int
+    stow_count: int
+    unnecessary_moves_avoided: int
+    severe_safety_events: int
+    unsafe_rotations: int
+
+
+@dataclass(frozen=True)
+class _Step:
+    outcome: StepOutcome
+    angle_before_deg: float
+    angle_after_deg: float
+    baseline_kwh: float
+    optimized_kwh: float
+    movement_cost_kwh_equivalent: float
+
+
+def evaluate_system(
+    weather_rows: Sequence[WeatherFeatures],
+    decide: Callable[[WeatherFeatures], StepOutcome],
+    energy_at: Callable[[WeatherFeatures, float], float],
+    *,
+    initial_angle_deg: float,
+    energy_source: str,
+    config: SimulationConfig,
+) -> SystemEvaluation:
+    """Replay the decision pipeline hour by hour against a row that never moves.
+
+    Baseline: the row stays at `initial_angle_deg` for every hour. Optimized: the
+    row follows each decision (ROTATE and STOW move it and pay movement cost; the
+    move is treated as instantaneous at the start of the hour). An unnecessary
+    move avoided is an hour where a raw-energy tracker would have moved (the
+    max-kWh candidate is not the current angle) but the safe decision was HOLD.
+    """
+    steps: list[_Step] = []
+    angle = initial_angle_deg
+    for weather in weather_rows:
+        outcome = decide({**weather, "panel_angle_deg": angle})
+        angle_after = outcome.target_angle_deg if outcome.action in ("ROTATE", "STOW") else angle
+        steps.append(_Step(
+            outcome=outcome,
+            angle_before_deg=angle,
+            angle_after_deg=angle_after,
+            baseline_kwh=energy_at(weather, initial_angle_deg),
+            optimized_kwh=energy_at(weather, angle_after),
+            movement_cost_kwh_equivalent=calculate_movement_cost(angle, angle_after, config=config)["movement_cost_kwh_equivalent"],
+        ))
+        angle = angle_after
+    baseline = sum(step.baseline_kwh for step in steps)
+    optimized = sum(step.optimized_kwh for step in steps)
+    movement_cost = sum(step.movement_cost_kwh_equivalent for step in steps)
+    return SystemEvaluation(
+        hours=len(steps),
+        energy_source=energy_source,
+        baseline_kwh=baseline,
+        optimized_kwh=optimized,
+        energy_gain_kwh=optimized - baseline,
+        movement_cost_kwh_equivalent=movement_cost,
+        net_benefit_kwh_equivalent=calculate_net_benefit(optimized - baseline, movement_cost),
+        rotate_count=_count(steps, "ROTATE"),
+        hold_count=_count(steps, "HOLD"),
+        stow_count=_count(steps, "STOW"),
+        unnecessary_moves_avoided=sum(1 for step in steps if _avoided_move(step)),
+        severe_safety_events=sum(1 for step in steps if step.outcome.severe_violation),
+        unsafe_rotations=sum(1 for step in steps if step.outcome.action == "ROTATE" and not step.outcome.safety_passed),
+    )
+
+
+def _count(steps: Sequence[_Step], action: str) -> int:
+    return sum(1 for step in steps if step.outcome.action == action)
+
+
+def _avoided_move(step: _Step) -> bool:
+    outcome = step.outcome
+    wanted_to_move = outcome.max_energy_angle_deg is not None and outcome.max_energy_angle_deg != step.angle_before_deg
+    return outcome.action == "HOLD" and outcome.safety_passed and wanted_to_move

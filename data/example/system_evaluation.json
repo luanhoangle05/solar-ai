@@ -1,0 +1,144 @@
+{
+  "metadata": {
+    "schema_version": "0.1.0",
+    "dataset_kind": "MOCK",
+    "label_source": "mock",
+    "energy_scope": "row",
+    "prediction_horizon_minutes": 60,
+    "interval_start": "2026-08-04T09:00:00Z",
+    "control_target_id": "row-001",
+    "config_id": "prototype-row-hour-v1",
+    "assumptions": [
+      "SYNTHETIC EXAMPLE DATA: weather and energy labels are simulated from a documented formula (data/example/README.md); not measurements.",
+      "kWh is for one 20-panel row over the hour starting at interval_start.",
+      "PROTOTYPE SIMULATION ASSUMPTIONS: movement and safety coefficients are not hardware-calibrated.",
+      "Model comparison metrics are computed on the chronological validation window; the test window is held out.",
+      "Control commands are simulation-only; no hardware is moved."
+    ]
+  },
+  "windows": {
+    "train": {
+      "rows": 3091,
+      "first": "2026-03-01T00:00:00Z",
+      "last": "2026-07-07T18:00:00Z"
+    },
+    "validation": {
+      "rows": 662,
+      "first": "2026-07-07T19:00:00Z",
+      "last": "2026-08-04T08:00:00Z"
+    },
+    "test": {
+      "rows": 663,
+      "first": "2026-08-04T09:00:00Z",
+      "last": "2026-08-31T23:00:00Z"
+    }
+  },
+  "validation_metrics": [
+    {
+      "model": "linear_regression",
+      "implementation": "linear_regression",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    },
+    {
+      "model": "random_forest",
+      "implementation": "random_forest",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    },
+    {
+      "model": "boosting",
+      "implementation": "xgboost",
+      "status": "MOCK",
+      "mae": 0.08046663800989556,
+      "rmse": 0.13746962886085698,
+      "r2": 0.994613245748935
+    },
+    {
+      "model": "lstm",
+      "implementation": "pytorch",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    }
+  ],
+  "unavailable_reasons": {
+    "linear_regression": "adapter not delivered yet",
+    "random_forest": "adapter not delivered yet",
+    "lstm": "adapter not delivered yet"
+  },
+  "selected_model": "boosting",
+  "selection_reason": "Selected boosting (xgboost): lowest validation RMSE 0.1375 kWh among 1 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
+  "test_metrics": [
+    {
+      "model": "linear_regression",
+      "implementation": "linear_regression",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    },
+    {
+      "model": "random_forest",
+      "implementation": "random_forest",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    },
+    {
+      "model": "boosting",
+      "implementation": "xgboost",
+      "status": "MOCK",
+      "mae": 0.06907060284208792,
+      "rmse": 0.1262091841367828,
+      "r2": 0.9943608056294567
+    },
+    {
+      "model": "lstm",
+      "implementation": "pytorch",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    }
+  ],
+  "replay_baseline": "row fixed at 35 deg for every test hour",
+  "system_evaluation": [
+    {
+      "hours": 663,
+      "energy_source": "model-predicted (boosting)",
+      "baseline_kwh": 1008.5532382848432,
+      "optimized_kwh": 1026.532238110205,
+      "energy_gain_kwh": 17.978999825361825,
+      "movement_cost_kwh_equivalent": 0.015,
+      "net_benefit_kwh_equivalent": 17.963999825361824,
+      "rotate_count": 1,
+      "hold_count": 662,
+      "stow_count": 0,
+      "unnecessary_moves_avoided": 81,
+      "severe_safety_events": 0,
+      "unsafe_rotations": 0
+    },
+    {
+      "hours": 663,
+      "energy_source": "example-data formula, noise-free (data/example/README.md)",
+      "baseline_kwh": 1037.2636033251833,
+      "optimized_kwh": 1045.031867289929,
+      "energy_gain_kwh": 7.768263964745756,
+      "movement_cost_kwh_equivalent": 0.015,
+      "net_benefit_kwh_equivalent": 7.753263964745757,
+      "rotate_count": 1,
+      "hold_count": 662,
+      "stow_count": 0,
+      "unnecessary_moves_avoided": 81,
+      "severe_safety_events": 0,
+      "unsafe_rotations": 0
+    }
+  ]
+}

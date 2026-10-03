@@ -46,13 +46,18 @@ class TraceRecorder:
         self._agent_log.append({"timestamp": self._clock(), "agent": self._agent, "action": action, "result": result})
 
     def call(self, tool: str, run: Callable[[], Result], describe: Callable[[Result], str]) -> Result:
-        """Run one tool, record OK/ERROR, and re-raise tool failures unchanged."""
+        """Run one tool and record OK/ERROR; every failure leaves as a ToolError."""
         try:
             result = run()
+            detail = describe(result)
         except ToolError as exc:
             self._record(tool, "ERROR", str(exc))
             raise
-        self._record(tool, "OK", describe(result))
+        except Exception as exc:
+            # A tool that crashes or returns a malformed result is a tool failure, not a lost trace.
+            self._record(tool, "ERROR", repr(exc))
+            raise ToolError(f"{tool} failed unexpectedly: {exc!r}") from exc
+        self._record(tool, "OK", detail)
         return result
 
     def fail(self, code: str, message: str) -> StageError:

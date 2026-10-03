@@ -8,7 +8,7 @@ import unittest
 
 from scripts.generate_example_data import DEFAULT_EXAMPLE_CONFIG, generate_rows
 from src.common.tool_contracts import EnergyPredictor, ToolError
-from src.models.advanced.boosting import BoostingConfig, train_boosting
+from src.models.advanced.boosting import BoostingConfig, split_for_early_stopping, train_boosting
 from src.models.evaluation import chronological_split, evaluate_predictor, to_features
 
 
@@ -26,7 +26,8 @@ class BoostingSmokeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.split = chronological_split(generate_rows(SMOKE_DATA))
-        cls.predictor = train_boosting(cls.split.train, cls.split.validation, SMOKE_MODEL)
+        cls.fit_rows, cls.stop_rows = split_for_early_stopping(cls.split.train)
+        cls.predictor = train_boosting(cls.fit_rows, cls.stop_rows, SMOKE_MODEL)
         cls.noon = to_features(max(cls.split.test, key=lambda row: row["sun_elevation_deg"]))
 
     def test_implements_shared_energy_predictor_interface(self) -> None:
@@ -78,8 +79,13 @@ class BoostingSmokeTest(unittest.TestCase):
 
         self.assertGreater(metrics.r2, 0.8)
 
+    def test_early_stopping_rows_are_the_tail_of_train_and_never_validation(self) -> None:
+        self.assertEqual([*self.fit_rows, *self.stop_rows], list(self.split.train))
+        self.assertTrue(self.stop_rows)
+        self.assertLess(self.stop_rows[-1]["timestamp"], self.split.validation[0]["timestamp"])
+
     def test_training_is_reproducible(self) -> None:
-        again = train_boosting(self.split.train, self.split.validation, SMOKE_MODEL)
+        again = train_boosting(self.fit_rows, self.stop_rows, SMOKE_MODEL)
 
         self.assertEqual(
             again.predict_kwh(self.noon, (35.0, 50.0), metadata=METADATA),
@@ -94,7 +100,7 @@ class BoostingSmokeTest(unittest.TestCase):
 
     def test_empty_training_window_raises_tool_error(self) -> None:
         with self.assertRaises(ToolError):
-            train_boosting((), self.split.validation, SMOKE_MODEL)
+            train_boosting((), self.stop_rows, SMOKE_MODEL)
 
 
 if __name__ == "__main__":

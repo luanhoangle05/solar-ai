@@ -29,6 +29,11 @@ class FailingPredictor:
         raise ToolError("adapter offline")
 
 
+class EmptyPredictor:
+    def predict_kwh(self, weather, candidate_angles_deg, *, metadata):
+        return []
+
+
 class ShortPredictor:
     def predict_kwh(self, weather, candidate_angles_deg, *, metadata):
         return [{"angle_deg": candidate_angles_deg[0], "predicted_kwh": 1.0}]
@@ -69,10 +74,11 @@ class ModelingAgentTest(unittest.TestCase):
     def test_selects_lowest_validation_rmse_and_reports_its_metrics(self) -> None:
         modeling = self.agent.run(self.state)["modeling"]
 
-        available = [entry for entry in modeling["model_comparison"] if entry["status"] != "UNAVAILABLE"]
-        best = min(available, key=lambda entry: entry["rmse"])
-        self.assertEqual(modeling["selected_model"], best["model"])
-        self.assertEqual((modeling["mae"], modeling["rmse"], modeling["r2"]), (best["mae"], best["rmse"], best["r2"]))
+        # Mock labels run 1.7..5.8 kWh: a constant 5.0 (boosting stand-in) is closer than a constant 3.0 (lstm stand-in).
+        by_model = {entry["model"]: entry for entry in modeling["model_comparison"]}
+        self.assertEqual(modeling["selected_model"], "boosting")
+        self.assertLess(by_model["boosting"]["rmse"], by_model["lstm"]["rmse"])
+        self.assertEqual((modeling["mae"], modeling["rmse"], modeling["r2"]), tuple(by_model["boosting"][key] for key in ("mae", "rmse", "r2")))
 
     def test_predicts_every_candidate_angle_including_stay(self) -> None:
         self.state["weather"]["panel_angle_deg"] = 37.5
@@ -120,6 +126,14 @@ class ModelingAgentTest(unittest.TestCase):
 
         self.assertEqual(modeling["selected_model"], "boosting")
         self.assertIn("adapter offline", tools.unavailable_reasons()["random_forest"])
+
+    def test_adapter_returning_malformed_output_is_unavailable_not_a_crash(self) -> None:
+        tools = build_tools(self.state, boosting=LinearInAnglePredictor(35.0), lstm=EmptyPredictor())
+
+        modeling = ModelingAgent(tools, DEFAULT_CONFIG, clock=fixed_clock).run(self.state)["modeling"]
+
+        self.assertEqual(modeling["selected_model"], "boosting")
+        self.assertIn("malformed", tools.unavailable_reasons()["lstm"])
 
     def test_no_available_model_raises_stage_error(self) -> None:
         agent = ModelingAgent(build_tools(self.state), DEFAULT_CONFIG, clock=fixed_clock)

@@ -12,12 +12,13 @@ from src.models.advanced.features import at_candidate_angles, feature_matrix, la
 
 MODEL_NAME = "boosting"
 IMPLEMENTATION = "xgboost"
-VALIDATION_SET_NAME = "validation"
+EARLY_STOPPING_SET_NAME = "early_stopping"
+EARLY_STOPPING_FRACTION = 0.15
 
 
 @dataclass(frozen=True)
 class BoostingConfig:
-    """Training hyperparameters; early stopping watches the validation window only."""
+    """Training hyperparameters; early stopping watches the tail of the train window."""
 
     num_boost_round: int = 600
     early_stopping_rounds: int = 40
@@ -52,10 +53,14 @@ class BoostingPredictor:
         ]
 
 
-def train_boosting(train_rows: Sequence[WeatherRow], validation_rows: Sequence[WeatherRow], config: BoostingConfig = DEFAULT_BOOSTING_CONFIG) -> BoostingPredictor:
-    """Fit on the train window; stop early on the validation window. Test rows are never seen."""
-    if not train_rows or not validation_rows:
-        raise ToolError("Boosting needs non-empty train and validation windows")
+def train_boosting(train_rows: Sequence[WeatherRow], early_stopping_rows: Sequence[WeatherRow], config: BoostingConfig = DEFAULT_BOOSTING_CONFIG) -> BoostingPredictor:
+    """Fit on `train_rows`; stop early on `early_stopping_rows`.
+
+    Pass a slice of the train window (see `split_for_early_stopping`), not the
+    validation window used for model selection, so the comparison stays fair.
+    """
+    if not train_rows or not early_stopping_rows:
+        raise ToolError("Boosting needs non-empty fit and early-stopping windows")
     params = {
         "objective": "reg:squarederror",
         "eval_metric": "rmse",
@@ -73,13 +78,19 @@ def train_boosting(train_rows: Sequence[WeatherRow], validation_rows: Sequence[W
             params,
             _to_dmatrix(train_rows, label_vector(train_rows)),
             num_boost_round=config.num_boost_round,
-            evals=[(_to_dmatrix(validation_rows, label_vector(validation_rows)), VALIDATION_SET_NAME)],
+            evals=[(_to_dmatrix(early_stopping_rows, label_vector(early_stopping_rows)), EARLY_STOPPING_SET_NAME)],
             early_stopping_rounds=config.early_stopping_rounds,
             verbose_eval=False,
         )
     except xgb.core.XGBoostError as exc:
         raise ToolError(f"Boosting training failed: {exc}") from exc
     return BoostingPredictor(booster)
+
+
+def split_for_early_stopping(train_rows: Sequence[WeatherRow], fraction: float = EARLY_STOPPING_FRACTION) -> tuple[Sequence[WeatherRow], Sequence[WeatherRow]]:
+    """(fit rows, early-stopping rows): the latest `fraction` of the train window is held for stopping."""
+    cut = len(train_rows) - int(len(train_rows) * fraction)
+    return train_rows[:cut], train_rows[cut:]
 
 
 def _to_dmatrix(rows: Sequence[WeatherFeatures], labels=None) -> xgb.DMatrix:

@@ -5,11 +5,12 @@ import math
 from pathlib import Path
 import unittest
 
+from src.common.config import DEFAULT_CONFIG
 from src.common.schema import MODEL_NAMES, ModelMetrics
 from src.common.tool_contracts import ToolError
 from src.models.data_loader import load_weather_rows
 from src.models.evaluation import (
-    build_model_metrics, chronological_split, compute_metrics, evaluate_predictor,
+    StepOutcome, build_model_metrics, chronological_split, compute_metrics, evaluate_predictor, evaluate_system,
     select_best_model, selection_reason, unavailable_model_metrics,
 )
 
@@ -155,6 +156,64 @@ class ModelMetricsBuilderTest(unittest.TestCase):
         self.assertEqual(mock_entry["status"], "MOCK")
         self.assertEqual(live_entry["status"], "VALIDATED")
         self.assertEqual(mock_entry["rmse"], metrics.rmse)
+
+
+class EvaluateSystemTest(unittest.TestCase):
+    """Scripted decisions over four hours; energy is 1 kWh per 10 degrees of tilt."""
+
+    def setUp(self) -> None:
+        script = {
+            "h1": StepOutcome("ROTATE", 45.0, safety_passed=True, severe_violation=False, max_energy_angle_deg=60.0),
+            "h2": StepOutcome("HOLD", 45.0, safety_passed=True, severe_violation=False, max_energy_angle_deg=60.0),
+            "h3": StepOutcome("STOW", 0.0, safety_passed=False, severe_violation=True, max_energy_angle_deg=60.0),
+            "h4": StepOutcome("HOLD", 0.0, safety_passed=True, severe_violation=False, max_energy_angle_deg=0.0),
+        }
+        self.seen_angles: list[float] = []
+
+        def decide(weather: dict) -> StepOutcome:
+            self.seen_angles.append(weather["panel_angle_deg"])
+            return script[weather["timestamp"]]
+
+        self.result = evaluate_system(
+            [{"timestamp": hour, "panel_angle_deg": 99.0} for hour in script], decide, lambda weather, angle: angle / 10,
+            initial_angle_deg=35.0, energy_source="test formula", config=DEFAULT_CONFIG,
+        )
+
+    def test_each_decision_sees_the_angle_left_by_the_previous_one(self) -> None:
+        self.assertEqual(self.seen_angles, [35.0, 45.0, 45.0, 0.0])
+
+    def test_counts_actions(self) -> None:
+        result = self.result
+
+        self.assertEqual((result.hours, result.rotate_count, result.hold_count, result.stow_count), (4, 1, 2, 1))
+
+    def test_energy_cost_and_net_benefit_totals(self) -> None:
+        result = self.result
+
+        self.assertAlmostEqual(result.baseline_kwh, 4 * 3.5)
+        self.assertAlmostEqual(result.optimized_kwh, 4.5 + 4.5 + 0.0 + 0.0)
+        self.assertAlmostEqual(result.energy_gain_kwh, 9.0 - 14.0)
+        self.assertAlmostEqual(result.movement_cost_kwh_equivalent, (10 + 45) * 0.003)
+        self.assertAlmostEqual(result.net_benefit_kwh_equivalent, -5.0 - 0.165)
+        self.assertEqual(result.energy_source, "test formula")
+
+    def test_counts_avoided_moves_and_safety_events(self) -> None:
+        result = self.result
+
+        # h2: a raw-energy tracker wanted 60 deg but the safe decision held. h4: nothing to avoid.
+        self.assertEqual(result.unnecessary_moves_avoided, 1)
+        self.assertEqual(result.severe_safety_events, 1)
+        self.assertEqual(result.unsafe_rotations, 0)
+
+    def test_flags_a_rotation_issued_despite_failed_safety(self) -> None:
+        unsafe = StepOutcome("ROTATE", 45.0, safety_passed=False, severe_violation=False, max_energy_angle_deg=45.0)
+
+        result = evaluate_system(
+            [{"timestamp": "h1", "panel_angle_deg": 35.0}], lambda weather: unsafe, lambda weather, angle: 1.0,
+            initial_angle_deg=35.0, energy_source="test formula", config=DEFAULT_CONFIG,
+        )
+
+        self.assertEqual(result.unsafe_rotations, 1)
 
 
 if __name__ == "__main__":

@@ -11,13 +11,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from src.agents.trace import StageError
 from src.common.config import DEFAULT_CONFIG
-from src.common.schema import ContractError, MODEL_NAMES, validate_agent_state, validate_frontend_data
+from src.common.schema import ContractError, MODEL_NAMES, validate_frontend_data
 from src.models.data_loader import default_dataset_source, load_weather_rows
 from src.models.evaluation import ModelCandidate, chronological_split, to_features, unavailable_model_metrics
 from src.service.recommendation_service import (
-    DEFAULT_IMPLEMENTATIONS, build_agents, build_metadata, build_modeling_tools, get_recommendation, save_recommendation,
+    DEFAULT_IMPLEMENTATIONS, build_agents, build_metadata, build_modeling_tools, get_recommendation, replay_test_window,
+    run_decision_stages, save_recommendation,
 )
 
 
@@ -50,31 +50,10 @@ class SliceOrchestrator:
         self.final_state: dict | None = None
 
     def run(self, state: dict) -> dict:
-        state = self._merge(state, self.data.run(state), "DATA")
-        for stage, agent in (("MODELING", self.agents.modeling), ("OPTIMIZATION", self.agents.optimization)):
-            try:
-                state = self._merge(state, agent.run(state), stage)
-            except StageError as error:
-                state = self._record_failure(state, error)
-                break
-        state = self._merge(state, self.agents.manager.run(state), "COMPLETE")
-        validate_agent_state(state)
-        self.final_state = state
-        return self._frontend(state)
-
-    @staticmethod
-    def _merge(state: dict, update: dict, stage: str) -> dict:
-        sections = {key: value for key, value in update.items() if key not in ("agent_log", "tool_calls")}
-        return {**state, **sections, "stage": stage, "agent_log": [*state["agent_log"], *update["agent_log"]], "tool_calls": [*state["tool_calls"], *update["tool_calls"]]}
-
-    @staticmethod
-    def _record_failure(state: dict, error: StageError) -> dict:
-        return {
-            **state,
-            "agent_log": [*state["agent_log"], *error.trace["agent_log"]],
-            "tool_calls": [*state["tool_calls"], *error.trace["tool_calls"]],
-            "errors": [*state["errors"], {"agent": error.agent, "code": error.code, "message": error.message}],
-        }
+        update = self.data.run(state)
+        state = {**state, "data": update["data"], "weather": update["weather"], "stage": "DATA"}
+        self.final_state = run_decision_stages(state, self.agents)
+        return self._frontend(self.final_state)
 
     def _frontend(self, state: dict) -> dict:
         modeling, weather, decision = state["modeling"], state["weather"], state["decision"]
@@ -221,6 +200,49 @@ class DuyVerticalSliceTest(unittest.TestCase):
 
         validate_frontend_data(loaded)
         self.assertEqual(loaded, payload)
+
+
+class SystemEvaluationReplayTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.source = default_dataset_source()
+        metadata = build_metadata(cls.source, interval_start=CLOCK_TIME, control_target_id=TARGET_ROW, config=DEFAULT_CONFIG)
+        cls.result = replay_test_window(
+            cls.source, build_modeling_tools(cls.source, metadata=metadata), DEFAULT_CONFIG,
+            initial_angle_deg=35.0, control_target_id=TARGET_ROW,
+        )
+        cls.test_rows = chronological_split(load_weather_rows(cls.source.path)).test
+
+    def test_every_test_hour_gets_exactly_one_decision(self) -> None:
+        result = self.result
+
+        self.assertEqual(result.hours, len(self.test_rows))
+        self.assertEqual(result.rotate_count + result.hold_count + result.stow_count, result.hours)
+        self.assertGreater(result.rotate_count, 0)
+        self.assertGreater(result.hold_count, 0)
+
+    def test_energy_is_labeled_as_model_predicted(self) -> None:
+        self.assertEqual(self.result.energy_source, "model-predicted (boosting)")
+
+    def test_totals_are_consistent(self) -> None:
+        result = self.result
+
+        self.assertAlmostEqual(result.energy_gain_kwh, result.optimized_kwh - result.baseline_kwh)
+        self.assertAlmostEqual(result.net_benefit_kwh_equivalent, result.energy_gain_kwh - result.movement_cost_kwh_equivalent)
+        self.assertGreater(result.movement_cost_kwh_equivalent, 0)
+
+    def test_storm_hours_are_stowed_and_nothing_rotates_past_a_failed_check(self) -> None:
+        storm_hours = sum(
+            1 for row in self.test_rows
+            if row["wind_speed_kmh"] > DEFAULT_CONFIG.max_wind_speed_kmh or row["wind_gust_kmh"] > DEFAULT_CONFIG.max_wind_gust_kmh
+        )
+
+        self.assertEqual(self.result.severe_safety_events, storm_hours)
+        self.assertEqual(self.result.stow_count, storm_hours)
+        self.assertEqual(self.result.unsafe_rotations, 0)
+
+    def test_some_raw_energy_moves_are_avoided(self) -> None:
+        self.assertGreater(self.result.unnecessary_moves_avoided, 0)
 
 
 def _unavailable(model: str) -> ModelCandidate:

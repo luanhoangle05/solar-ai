@@ -63,6 +63,15 @@ class SafetyChecksTest(unittest.TestCase):
 
         self.assertFalse(TOOLS.check_wind_safety(self.weather, config=strict)["passed"])
 
+    def test_non_finite_readings_fail_closed(self) -> None:
+        nan = float("nan")
+
+        self.assertFalse(TOOLS.check_wind_safety({**self.weather, "wind_gust_kmh": nan}, config=DEFAULT_CONFIG)["passed"])
+        self.assertFalse(TOOLS.check_wind_safety({**self.weather, "wind_speed_kmh": float("inf")}, config=DEFAULT_CONFIG)["passed"])
+        self.assertFalse(TOOLS.check_angle_limits(nan, config=DEFAULT_CONFIG)["passed"])
+        self.assertFalse(TOOLS.check_data_freshness({**self.data, "forecast_age_minutes": nan}, config=DEFAULT_CONFIG)["passed"])
+        self.assertFalse(TOOLS.check_data_freshness({**self.data, "forecast_age_minutes": -1.0}, config=DEFAULT_CONFIG)["passed"])
+
     def test_angle_limits(self) -> None:
         self.assertTrue(TOOLS.check_angle_limits(90.0, config=DEFAULT_CONFIG)["passed"])
         self.assertFalse(TOOLS.check_angle_limits(90.5, config=DEFAULT_CONFIG)["passed"])
@@ -163,6 +172,13 @@ class SafetyRulesTest(unittest.TestCase):
 
         self.assertEqual(decision["action"], "HOLD")
 
+    def test_negative_threshold_never_rotates_on_a_loss(self) -> None:
+        reckless = dataclasses.replace(DEFAULT_CONFIG, config_id="test", min_net_benefit_kwh_equivalent=-1.0)
+
+        _, decision = TOOLS.apply_safety_rules([PASSING], with_net_benefit(-0.5), current_angle_deg=35.0, config=reckless)
+
+        self.assertEqual(decision["action"], "HOLD")
+
     def test_refuses_to_decide_without_checks(self) -> None:
         with self.assertRaises(ToolError):
             self.apply([])
@@ -203,7 +219,7 @@ class ManagerAgentTest(unittest.TestCase):
         update = self.agent.run(self.state)
 
         self.assertEqual((update["decision"]["action"], update["decision"]["target_angle_deg"]), ("ROTATE", 45.0))
-        self.assertEqual([check["name"] for check in update["safety"]["checks"]], ["wind_safety", "angle_limits", "data_freshness", "panel_status", "model_confidence"])
+        self.assertEqual([check["name"] for check in update["safety"]["checks"]], ["wind_safety", "angle_limits", "data_freshness", "angle_consistency", "panel_status", "model_confidence"])
         validate_agent_state(self.merged(update))
 
     def test_coordinates_every_safety_tool_then_the_rules_then_simulated_dispatch(self) -> None:
@@ -244,6 +260,29 @@ class ManagerAgentTest(unittest.TestCase):
         agent = ManagerAgent(TOOLS, DEFAULT_CONFIG, row_status=lambda _: {"angle_deg": 35.0, "current_state": "FAULT"}, clock=fixed_clock)
 
         self.assertEqual(agent.run(self.state)["decision"]["action"], "HOLD")
+
+    def test_holds_at_observed_angle_when_stages_assumed_a_different_angle(self) -> None:
+        agent = ManagerAgent(TOOLS, DEFAULT_CONFIG, row_status=lambda _: {"angle_deg": 50.0, "current_state": "READY"}, clock=fixed_clock)
+
+        update = agent.run(self.state)
+
+        self.assertEqual((update["decision"]["action"], update["decision"]["target_angle_deg"]), ("HOLD", 50.0))
+        failed = [check["name"] for check in update["safety"]["checks"] if not check["passed"]]
+        self.assertEqual(failed, ["angle_consistency"])
+
+    def test_stows_when_recommended_angle_is_outside_limits(self) -> None:
+        self.state["optimization"] = {**self.state["optimization"], "recommended_angle_deg": 120.0}
+
+        self.assertEqual(self.agent.run(self.state)["decision"]["action"], "STOW")
+
+    def test_failing_row_status_lookup_raises_stage_error_with_trace(self) -> None:
+        def broken(_target_id: str) -> dict:
+            raise KeyError("row-001")
+
+        with self.assertRaises(StageError) as raised:
+            ManagerAgent(TOOLS, DEFAULT_CONFIG, row_status=broken, clock=fixed_clock).run(self.state)
+
+        self.assertEqual(raised.exception.code, "SAFETY_FAILED")
 
     def test_holds_when_upstream_stages_failed(self) -> None:
         self.state.update(modeling=None, optimization=None)
