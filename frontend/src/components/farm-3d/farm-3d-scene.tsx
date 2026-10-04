@@ -301,7 +301,7 @@ function FarmGeometry({ layout, props, labels, tracking, onRow, onHover, portal,
         <mesh receiveShadow position={zone.position}><boxGeometry args={[zone.width, 0.12, zone.depth]}/><meshStandardMaterial color={props.selectedZone === zone.id ? "#213c43" : "#182f35"}/></mesh>
         <Border center={[zone.position[0], 0.13, zone.position[2]]} width={zone.width} depth={zone.depth} color={color} thickness={props.selectedZone === zone.id ? 0.22 : 0.1}/>
         <PanelInstances zone={zone} texture={texture} scenic={scenic} tracking={tracking} onRow={onRow} onHover={onHover}/>
-        {labels && <Html portal={portal} position={[zone.position[0], 2.5, zone.position[2] - zone.depth / 2 + 0.5]} center zIndexRange={[15, 0]}><button className="f3-zone-label" style={{ "--zone-color": getZoneColor(zone.id) } as CSSProperties} type="button" aria-pressed={props.selectedZone === zone.id} onClick={() => props.onZone(zone.id)}><strong>{formatZoneName(zone.id)}</strong><span>{zone.rows.length} rows · {zone.panels.length} panels</span></button></Html>}
+        {labels && <Html portal={portal} position={[zone.position[0], 2.5, zone.position[2] - zone.depth / 2 + 0.5]} center zIndexRange={[15, 0]}><button className="f3-zone-label" style={{ "--zone-color": getZoneColor(zone.id) } as CSSProperties} type="button" aria-pressed={props.selectedZone === zone.id} onClick={() => props.onZone(zone.id)}><strong>{formatZoneName(zone.id)}</strong>{!props.simulation && <span>{zone.rows.length} rows · {zone.panels.length} panels</span>}</button></Html>}
       </group>;
     })}
     {target && <RowMarker row={target} target labels={labels} portal={portal}/>}
@@ -323,25 +323,25 @@ export default function Farm3DScene(props: Farm3DProps) {
   const hoverRow = getSceneRow(layout, hovered)?.row;
   const [isTracking, setIsTracking] = useState(false);
   const tracking = isTracking && environment !== null && props.trackingRange ? props.trackingRange : null;
-  function focus(id: string | null) { setRequest(previous => ({ id, sequence: previous.sequence + 1 })); }
+  function focus(id: string | null) { if (props.onFocus) props.onFocus(id); else setRequest(previous => ({ id, sequence: previous.sequence + 1 })); }
   // In the scenic view, clicking a row also flies the camera in for a close look at it.
   function pickRow(id: string) { props.onRow(id); if (environment !== null) focus(id); }
   return <FarmPanel title="3D Farm View" icon={Box} className="f3-panel" meta={<span className="fx-note">SCHEMATIC · {layout.panelCount.toLocaleString("en-US")} PANELS</span>}>
     <div className="f3-toolbar" aria-label="Camera and display controls">
       {environment !== null && props.trackingRange && <button type="button" aria-pressed={isTracking} onClick={() => setIsTracking(value => !value)}><Sun size={14}/>{isTracking ? "Stop sun tracking" : "Sun-tracking demo"}</button>}
-      <button type="button" onClick={() => focus(null)}><RotateCcw size={14}/>Overview</button>
+      <button type="button" onClick={() => focus(null)}><RotateCcw size={14}/>{props.simulation ? "Back to Farm" : "Overview"}</button>
       <button type="button" onClick={() => focus(props.targetId)} disabled={!getSceneRow(layout, props.targetId)}><Crosshair size={14}/>Focus target</button>
-      <button type="button" onClick={() => focus(props.selectedRow)} disabled={!getSceneRow(layout, props.selectedRow)}><ScanLine size={14}/>Focus selected</button>
+      <button type="button" onClick={() => focus(props.selectedRow)} disabled={!getSceneRow(layout, props.selectedRow)}><ScanLine size={14}/>{props.simulation ? "Focus Row" : "Focus selected"}</button>
       <button type="button" aria-pressed={labels} onClick={() => setLabels(value => !value)}><Eye size={14}/>{labels ? "Hide labels" : "Show labels"}</button>
     </div>
     {failed ? <SceneUnavailable onExit={props.onExit} operator={props.operator}/> : <div className="f3-canvas" data-hovered={!!hoverRow} role="group" aria-label="Schematic 3D farm. Drag to orbit, right-drag to pan, scroll or pinch to zoom. Use the row picker or table for keyboard inspection.">
       <Canvas onCreated={state => { if (environment !== null) state.gl.toneMappingExposure = 0.42; }} shadows={environment !== null} frameloop={environment !== null ? "always" : "demand"} dpr={[1, 1.5]} camera={{ fov: 42, near: 0.1, far: 2000 }} gl={{ antialias: true, powerPreference: "low-power" }} fallback={<SceneUnavailable onExit={props.onExit} operator={props.operator}/>}>
-        <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={request} scenic={environment !== null}/><FarmGeometry layout={layout} props={props} labels={labels} tracking={tracking} onRow={pickRow} onHover={setHovered} portal={labelPortal} environment={environment}/>
+        <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={props.cameraRequest ?? request} scenic={environment !== null}/><FarmGeometry layout={layout} props={props} labels={labels} tracking={tracking} onRow={pickRow} onHover={setHovered} portal={labelPortal} environment={environment}/>
       </Canvas>
       <div className="f3-label-layer" ref={labelPortal}/>
       <div className="f3-scene-caption"><span>SCHEMATIC 3D VIEW</span><strong>{layout.zones.length} zones <i/> {layout.rows.length} rows</strong></div>
       {tracking && <div className="f3-tracking" role="status">SUN-TRACKING DEMO · panels sweep the evaluated range {formatAngle(tracking.minDeg)}–{formatAngle(tracking.maxDeg)} with the sun · illustrative, recorded angles unchanged</div>}
-      <div className="f3-hover" aria-live="off">{hoverRow ? <><strong>{hoverRow.row_id}</strong> {formatAngle(hoverRow.angle_deg)} · {hoverRow.current_state} · Recorded {hoverRow.action}</> : "Drag to orbit · Scroll / pinch to zoom · Right-drag to pan"}</div>
+      <div className="f3-hover" aria-live="off">{hoverRow ? <><strong>{hoverRow.row_id}</strong> {formatAngle(hoverRow.angle_deg)} · {hoverRow.current_state} · {props.simulation ? "" : "Recorded "}{hoverRow.action}</> : "Drag to orbit · Scroll / pinch to zoom · Right-drag to pan"}</div>
     </div>}
     <div className="f3-legend"><span className="f3-target-key">⊕ Control target</span><span>◇ Selected row</span>{Object.entries(rowStatePresentation).map(([state, presentation]) => <span key={state}><presentation.icon size={12} style={{ color: presentation.color }}/>{state}</span>)}</div>
     {props.operator ? <details className="f3-operator-info"><summary>About this view</summary><p>Farm layout and atmosphere are illustrative. Panel angles and row states show the available farm data.</p></details> : <p className="f3-note">Schematic 3D layout. Zone membership, row state, and tilt come from the loaded farm contract; geographic coordinates are not available. Panel tilt uses one illustrative axis; geographic orientation is not provided. {environment ? `Cloud count and haze follow the supplied cloud cover (${environment.cloudCount} clouds drawn) and light strength follows the supplied GHI; cloud drift speed follows the supplied wind speed. The low sun, its slow sweep and the drift direction are illustrative animation: the payload has no solar position or wind direction and covers a single hour.` : "Scene lighting is illustrative, not solar-position data."}</p>}

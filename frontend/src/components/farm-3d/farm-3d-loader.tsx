@@ -14,6 +14,10 @@ export type Farm3DProps = {
   trackingRange?: TrackingRange;
   /** Compact operator presentation; does not change Farm route behavior. */
   operator?: boolean;
+  /** Simulation owns selection/focus; other consumers retain internal camera controls. */
+  simulation?: boolean;
+  cameraRequest?: { id: string | null; sequence: number };
+  onFocus?: (id: string | null) => void;
 };
 const Scene = dynamic(() => import("./farm-3d-scene"), {
   ssr: false,
