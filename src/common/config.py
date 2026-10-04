@@ -43,6 +43,28 @@ class SimulationConfig:
 DEFAULT_CONFIG = SimulationConfig()
 
 
+# Internal provider configuration; no changes to shared simulation contracts.
+DEMO_LATITUDE_DEG = 51.0447
+DEMO_LONGITUDE_DEG = -114.0719
+
+
+@dataclass(frozen=True)
+class OpenMeteoConfig:
+    base_url: str = "https://api.open-meteo.com/v1/forecast"
+    timeout_seconds: float = 15.0
+    source: str = "open-meteo"
+
+    def __post_init__(self):
+        import math
+        if (type(self.timeout_seconds) not in (int, float)
+                or not math.isfinite(self.timeout_seconds) or self.timeout_seconds <= 0):
+            raise ValueError("Provider timeout must be finite and positive")
+        if not self.base_url.startswith("https://"):
+            raise ValueError("Provider URL must use HTTPS")
+        if not self.source.strip():
+            raise ValueError("Provider source must be nonempty")
+
+
 @dataclass(frozen=True)
 class DatabaseConfig:
     """Internal PostgreSQL settings; independent of shared weather contracts."""
