@@ -3,11 +3,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type CSSProperties, type RefObject } from "react";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, OrbitControls } from "@react-three/drei";
-import { CanvasTexture, Color, InstancedMesh, Object3D, SRGBColorSpace } from "three";
+import { AdditiveBlending, CanvasTexture, Color, InstancedMesh, Object3D, SRGBColorSpace } from "three";
 import { Box, Crosshair, Eye, RotateCcw, ScanLine } from "lucide-react";
 import { getZoneColor } from "@/config/zones";
 import { rowStatePresentation } from "@/config/row-states";
-import { buildFarmSceneLayout, getCameraPreset, getInstanceRowId, getSceneRow, sceneDimensions, type FarmSceneLayout, type SceneRow, type SceneZone, type Vec3 } from "@/lib/farm-3d";
+import { buildFarmSceneLayout, cameraDirections, getCameraPreset, getInstanceRowId, getSceneEnvironment, getSceneRow, sceneDimensions, type FarmSceneLayout, type SceneEnvironment, type SceneRow, type SceneZone, type Vec3 } from "@/lib/farm-3d";
 import { formatZoneName } from "@/lib/farm";
 import { formatAngle } from "@/lib/formatters";
 import { FarmPanel } from "@/components/farm/farm-panel";
@@ -51,7 +51,7 @@ function PanelInstances({ zone, texture, onRow, onHover }: { zone: SceneZone; te
     if (event.delta > 5) return; // Camera drags must not become inspection clicks.
     const id = getInstanceRowId(zone, event.instanceId); if (id) onRow(id);
   }
-  return <instancedMesh ref={mesh} args={[undefined, undefined, zone.panels.length]} onClick={pick} onPointerMove={event => { event.stopPropagation(); onHover(getInstanceRowId(zone, event.instanceId)); }} onPointerOut={() => onHover(null)}>
+  return <instancedMesh ref={mesh} castShadow receiveShadow args={[undefined, undefined, zone.panels.length]} onClick={pick} onPointerMove={event => { event.stopPropagation(); onHover(getInstanceRowId(zone, event.instanceId)); }} onPointerOut={() => onHover(null)}>
     <boxGeometry args={[sceneDimensions.panelWidth, 0.065, sceneDimensions.panelDepth]}/>
     <meshStandardMaterial map={texture} metalness={0.36} roughness={0.48}/>
   </instancedMesh>;
@@ -92,10 +92,50 @@ function RowMarker({ row, target, labels, portal }: { row: SceneRow; target: boo
   </group>;
 }
 
-function CameraRig({ layout, request }: { layout: FarmSceneLayout; request: { id: string | null; sequence: number } }) {
+const skyColor = "#123c66";
+function makeGlowTexture() {
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
+  const context = canvas.getContext("2d");
+  if (context) {
+    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gradient.addColorStop(0, "rgba(255,238,170,1)"); gradient.addColorStop(0.25, "rgba(255,214,110,.55)"); gradient.addColorStop(1, "rgba(255,200,90,0)");
+    context.fillStyle = gradient; context.fillRect(0, 0, 128, 128);
+  }
+  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
+  return texture;
+}
+const cloudPuffs: { offset: Vec3; size: number }[] = [
+  { offset: [0, 0, 0], size: 1 }, { offset: [1.05, -0.1, 0.15], size: 0.78 }, { offset: [-1.1, -0.12, -0.1], size: 0.72 },
+  { offset: [0.45, 0.42, -0.2], size: 0.66 }, { offset: [-0.5, 0.3, 0.3], size: 0.6 }, { offset: [1.85, -0.25, -0.05], size: 0.5 },
+];
+/** Sun, clouds, ground and shadow-casting light. Strength and cloud count follow the payload weather; the sun's place is illustrative. */
+function Sky({ environment, layout }: { environment: SceneEnvironment; layout: FarmSceneLayout }) {
+  const glow = useMemo(() => makeGlowTexture(), []);
+  useEffect(() => () => glow.dispose(), [glow]);
+  const extent = environment.shadowExtent;
+  const reach = Math.max(layout.bounds.width, layout.bounds.depth);
+  const glowSize = 9 + 16 * environment.brightness;
+  return <>
+    <color attach="background" args={[skyColor]}/><fog attach="fog" args={[skyColor, reach * 1.6, reach * 5.5]}/>
+    <ambientLight intensity={0.45 + environment.skyIntensity * 0.35}/><hemisphereLight args={["#cfe8ff", "#24503a", environment.skyIntensity]}/>
+    <directionalLight castShadow color="#fff1cf" position={[environment.sunPosition[0] * 3, environment.sunPosition[1] * 3, environment.sunPosition[2] * 3]} intensity={environment.sunIntensity}
+      shadow-mapSize={[2048, 2048]} shadow-bias={-0.0006} shadow-camera-near={1} shadow-camera-far={reach * 8} shadow-camera-left={-extent} shadow-camera-right={extent} shadow-camera-top={extent} shadow-camera-bottom={-extent}/>
+    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.36, 0]}><planeGeometry args={[reach * 14, reach * 14]}/><meshStandardMaterial color="#1f5140" roughness={1}/></mesh>
+    <group position={environment.sunPosition}>
+      <mesh><sphereGeometry args={[2.1, 24, 24]}/><meshBasicMaterial color="#fff0b8" toneMapped={false} fog={false}/></mesh>
+      <sprite scale={[glowSize, glowSize, 1]}><spriteMaterial map={glow} blending={AdditiveBlending} depthWrite={false} transparent toneMapped={false} fog={false}/></sprite>
+    </group>
+    {environment.clouds.map((cloud, index) => <group key={index} position={cloud.position} scale={[cloud.scale * 1.5, cloud.scale * 0.62, cloud.scale]}>
+      {cloudPuffs.map((puff, puffIndex) => <mesh key={puffIndex} castShadow position={puff.offset}><sphereGeometry args={[puff.size, 14, 12]}/><meshStandardMaterial color="#eef5ff" roughness={1} transparent opacity={0.93}/></mesh>)}
+    </group>)}
+  </>;
+}
+
+function CameraRig({ layout, request, scenic }: { layout: FarmSceneLayout; request: { id: string | null; sequence: number }; scenic: boolean }) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const { camera, size, invalidate, controls: activeControls } = useThree();
-  const preset = useMemo(() => getCameraPreset(layout, size.width / Math.max(1, size.height), request.id), [layout, size.width, size.height, request.id]);
+  const direction = scenic ? cameraDirections.scenic : cameraDirections.overview;
+  const preset = useMemo(() => getCameraPreset(layout, size.width / Math.max(1, size.height), request.id, direction), [layout, size.width, size.height, request.id, direction]);
   useEffect(() => {
     // Apply the first preset after OrbitControls registers, so its initial update
     // cannot overwrite the overview with the default camera position.
@@ -116,19 +156,19 @@ function ContextGuard({ onFailure }: { onFailure: () => void }) {
   }, [gl, onFailure]);
   return null;
 }
-function FarmGeometry({ layout, props, labels, onHover, portal }: { layout: FarmSceneLayout; props: Farm3DProps; labels: boolean; onHover: (id: string | null) => void; portal: RefObject<HTMLDivElement> }) {
+function FarmGeometry({ layout, props, labels, onHover, portal, environment }: { layout: FarmSceneLayout; props: Farm3DProps; labels: boolean; onHover: (id: string | null) => void; portal: RefObject<HTMLDivElement>; environment: SceneEnvironment | null }) {
   const texture = useMemo(() => makePanelTexture(), []);
   useEffect(() => () => texture.dispose(), [texture]);
   const target = getSceneRow(layout, props.targetId); const selected = getSceneRow(layout, props.selectedRow);
   return <>
-    <color attach="background" args={["#081823"]}/>
-    <ambientLight intensity={0.7}/><hemisphereLight args={["#d5edff", "#183125", 1.1]}/><directionalLight position={[-20, 50, 20]} intensity={1.5}/>
-    <mesh position={[0, -0.35, 0]}><boxGeometry args={[layout.bounds.width + 9, 0.5, layout.bounds.depth + 9]}/><meshStandardMaterial color="#132a30" roughness={0.95}/></mesh>
+    {environment ? <Sky environment={environment} layout={layout}/> : <><color attach="background" args={["#081823"]}/>
+    <ambientLight intensity={0.7}/><hemisphereLight args={["#d5edff", "#183125", 1.1]}/><directionalLight position={[-20, 50, 20]} intensity={1.5}/></>}
+    <mesh receiveShadow position={[0, -0.35, 0]}><boxGeometry args={[layout.bounds.width + 9, 0.5, layout.bounds.depth + 9]}/><meshStandardMaterial color="#132a30" roughness={0.95}/></mesh>
     <RowAccents rows={layout.rows}/>
     {layout.zones.map(zone => {
       const color = resolveColor(getZoneColor(zone.id));
       return <group key={zone.id}>
-        <mesh position={zone.position}><boxGeometry args={[zone.width, 0.12, zone.depth]}/><meshStandardMaterial color={props.selectedZone === zone.id ? "#213c43" : "#182f35"}/></mesh>
+        <mesh receiveShadow position={zone.position}><boxGeometry args={[zone.width, 0.12, zone.depth]}/><meshStandardMaterial color={props.selectedZone === zone.id ? "#213c43" : "#182f35"}/></mesh>
         <Border center={[zone.position[0], 0.13, zone.position[2]]} width={zone.width} depth={zone.depth} color={color} thickness={props.selectedZone === zone.id ? 0.22 : 0.1}/>
         <PanelInstances zone={zone} texture={texture} onRow={props.onRow} onHover={onHover}/>
         {labels && <Html portal={portal} position={[zone.position[0], 2.5, zone.position[2] - zone.depth / 2 + 0.5]} center zIndexRange={[15, 0]}><button className="f3-zone-label" style={{ "--zone-color": getZoneColor(zone.id) } as CSSProperties} type="button" aria-pressed={props.selectedZone === zone.id} onClick={() => props.onZone(zone.id)}><strong>{formatZoneName(zone.id)}</strong><span>{zone.rows.length} rows · {zone.panels.length} panels</span></button></Html>}
@@ -143,6 +183,9 @@ export default function Farm3DScene(props: Farm3DProps) {
   // The sibling DOM portal is attached before Canvas mounts its scene children.
   const labelPortal = useRef<HTMLDivElement>(null!);
   const layout = useMemo(() => buildFarmSceneLayout(props.farm), [props.farm]);
+  const cloudCoverPct = props.weather?.cloudCoverPct, ghiWm2 = props.weather?.ghiWm2;
+  const { width: boundsWidth, depth: boundsDepth } = layout.bounds;
+  const environment = useMemo(() => cloudCoverPct === undefined || ghiWm2 === undefined ? null : getSceneEnvironment({ cloudCoverPct, ghiWm2 }, { width: boundsWidth, depth: boundsDepth, center: [0, 0, 0] }), [cloudCoverPct, ghiWm2, boundsWidth, boundsDepth]);
   const [labels, setLabels] = useState(true);
   const [hovered, setHovered] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -157,14 +200,14 @@ export default function Farm3DScene(props: Farm3DProps) {
       <button type="button" aria-pressed={labels} onClick={() => setLabels(value => !value)}><Eye size={14}/>{labels ? "Hide labels" : "Show labels"}</button>
     </div>
     {failed ? <SceneUnavailable onExit={props.onExit}/> : <div className="f3-canvas" data-hovered={!!hoverRow} role="group" aria-label="Schematic 3D farm. Drag to orbit, right-drag to pan, scroll or pinch to zoom. Use the row picker or table for keyboard inspection.">
-      <Canvas frameloop="demand" dpr={[1, 1.5]} camera={{ fov: 42, near: 0.1, far: 2000 }} gl={{ antialias: true, powerPreference: "low-power" }} fallback={<SceneUnavailable onExit={props.onExit}/>}>
-        <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={request}/><FarmGeometry layout={layout} props={props} labels={labels} onHover={setHovered} portal={labelPortal}/>
+      <Canvas shadows={environment !== null} frameloop="demand" dpr={[1, 1.5]} camera={{ fov: 42, near: 0.1, far: 2000 }} gl={{ antialias: true, powerPreference: "low-power" }} fallback={<SceneUnavailable onExit={props.onExit}/>}>
+        <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={request} scenic={environment !== null}/><FarmGeometry layout={layout} props={props} labels={labels} onHover={setHovered} portal={labelPortal} environment={environment}/>
       </Canvas>
       <div className="f3-label-layer" ref={labelPortal}/>
       <div className="f3-scene-caption"><span>SCHEMATIC 3D VIEW</span><strong>{layout.zones.length} zones <i/> {layout.rows.length} rows</strong></div>
       <div className="f3-hover" aria-live="off">{hoverRow ? <><strong>{hoverRow.row_id}</strong> {formatAngle(hoverRow.angle_deg)} · {hoverRow.current_state} · Recorded {hoverRow.action}</> : "Drag to orbit · Scroll / pinch to zoom · Right-drag to pan"}</div>
     </div>}
     <div className="f3-legend"><span className="f3-target-key">⊕ Control target</span><span>◇ Selected row</span>{Object.entries(rowStatePresentation).map(([state, presentation]) => <span key={state}><presentation.icon size={12} style={{ color: presentation.color }}/>{state}</span>)}</div>
-    <p className="f3-note">Schematic 3D layout. Zone membership, row state, and tilt come from the loaded farm contract; geographic coordinates are not available. Panel tilt uses one illustrative axis; geographic orientation is not provided. Scene lighting is illustrative, not solar-position data.</p>
+    <p className="f3-note">Schematic 3D layout. Zone membership, row state, and tilt come from the loaded farm contract; geographic coordinates are not available. Panel tilt uses one illustrative axis; geographic orientation is not provided. {environment ? `Cloud count follows the supplied cloud cover (${environment.cloudCount} drawn) and light strength follows the supplied GHI; the sun position is illustrative because the payload has no solar-position data.` : "Scene lighting is illustrative, not solar-position data."}</p>
   </FarmPanel>;
 }

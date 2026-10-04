@@ -99,3 +99,14 @@ describe("camera and defensive empty inputs", () => {
   it("produces a finite camera for an empty farm", () => { const result = buildFarmSceneLayout({ ...data.farm_status, zones: [], rows: [] }); expect(getCameraPreset(result, 0).position.every(Number.isFinite)).toBe(true); });
   it("preserves noncontiguous membership order", () => { const farm = structuredClone(data.farm_status); farm.zones[0].row_ids = ["row-012", "row-002"]; expect(buildFarmSceneLayout(farm).zones[0].rows.map(row => row.row.row_id)).toEqual(["row-012", "row-002"]); });
 });
+
+import { cameraDirections, getSceneEnvironment } from "./farm-3d";
+describe("scenic sky follows the supplied weather", () => {
+  const bounds = { width: 60, depth: 60, center: [0, 0, 0] as [number, number, number] };
+  it("draws no clouds for a clear sky", () => expect(getSceneEnvironment({ cloudCoverPct: 0, ghiWm2: 900 }, bounds).clouds).toEqual([]));
+  it("draws more clouds as cloud cover rises", () => expect([15, 50, 100].map(cloudCoverPct => getSceneEnvironment({ cloudCoverPct, ghiWm2: 500 }, bounds).cloudCount)).toEqual([3, 7, 14]));
+  it("brightens the sun with GHI", () => expect(getSceneEnvironment({ cloudCoverPct: 10, ghiWm2: 850 }, bounds).sunIntensity).toBeGreaterThan(getSceneEnvironment({ cloudCoverPct: 10, ghiWm2: 100 }, bounds).sunIntensity));
+  it("clamps out-of-range inputs", () => expect(getSceneEnvironment({ cloudCoverPct: 250, ghiWm2: 5000 }, bounds)).toMatchObject({ cloudCount: 14, brightness: 1 }));
+  it("is deterministic for the same payload", () => expect(getSceneEnvironment({ cloudCoverPct: 40, ghiWm2: 600 }, bounds)).toEqual(getSceneEnvironment({ cloudCoverPct: 40, ghiWm2: 600 }, bounds)));
+  it("keeps the default camera direction unless the scenic one is requested", () => expect(cameraDirections.overview).toEqual([0.18, 0.72, 0.67]));
+});

@@ -33,6 +33,8 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
     if (row) setSelection({ rowId: row.row_id, zoneId: row.zone_id });
   }
   function inspectZone(id: string) { setSelection(getZoneSelection(data.farm_status, id, selection.rowId)); }
+  const cloudCoverPct = data.current_weather?.cloud_cover_pct, ghiWm2 = data.current_weather?.ghi_wm2;
+  const sceneWeather = useMemo(() => cloudCoverPct === undefined || ghiWm2 === undefined ? undefined : { cloudCoverPct, ghiWm2 }, [cloudCoverPct, ghiWm2]);
   const sceneProps = { farm, targetId, selectedZone: selection.zoneId, selectedRow: selection.rowId, onZone: inspectZone, onRow: inspectRow };
 
   return <section className="sfs" aria-label="Solar Farm Simulation">
@@ -50,7 +52,7 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
           {isPreviewing && <span className="sfs-preview-tag"><Eye size={13} aria-hidden="true"/>PREVIEW · {data.decision.action} · {targetId} drawn at {formatAngle(previewAngle)}</span>}
           <div role="group" aria-label="Farm view"><button type="button" aria-pressed={view === "2d"} onClick={() => setView("2d")}>2D</button><button type="button" aria-pressed={view === "3d"} onClick={() => setView("3d")}>3D</button></div>
         </div>
-        {view === "3d" ? <Farm3DLoader {...sceneProps} onExit={() => setView("2d")}/> : <FarmMap {...sceneProps}/>}
+        {view === "3d" ? <Farm3DLoader {...sceneProps} weather={sceneWeather} onExit={() => setView("2d")}/> : <FarmMap {...sceneProps}/>}
       </div>
       {rowView
         ? <RowPanel view={rowView} action={data.decision.action} previewAngle={previewAngle} isPreviewing={isPreviewing} onPreview={setIsPreviewing}/>

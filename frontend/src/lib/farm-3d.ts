@@ -43,11 +43,13 @@ export function getInstanceRowId(zone: SceneZone, instanceId: number | undefined
 export function getSceneRow(layout: FarmSceneLayout, id: string | null) {
   return layout.rows.find(item => item.row.row_id === id) ?? null;
 }
-export function getCameraPreset(layout: FarmSceneLayout, aspect: number, rowId: string | null = null): { position: Vec3; target: Vec3; distance: number } {
+/** Default overview direction, and a lower one that leaves room for the sun and clouds around the farm. */
+export const cameraDirections = { overview: [0.18, 0.72, 0.67], scenic: [0.3, 0.5, 0.82] } as const satisfies Record<string, Vec3>;
+export function getCameraPreset(layout: FarmSceneLayout, aspect: number, rowId: string | null = null, from: Vec3 = cameraDirections.overview): { position: Vec3; target: Vec3; distance: number } {
   const row = getSceneRow(layout, rowId);
   const target: Vec3 = row ? [...row.position] : [...layout.bounds.center];
   // Fit all bounding-box corners against both camera frustum axes.
-  const direction: Vec3 = [0.18, 0.72, 0.67];
+  const direction: Vec3 = [...from];
   const length = Math.hypot(...direction); direction.forEach((value, i) => { direction[i] = value / length; });
   const horizontal = Math.hypot(direction[0], direction[2]);
   const right: Vec3 = [direction[2] / horizontal, 0, -direction[0] / horizontal];
@@ -64,3 +66,28 @@ export function getCameraPreset(layout: FarmSceneLayout, aspect: number, rowId: 
   distance *= 0.96;
   return { target, distance, position: [target[0] + distance * direction[0], target[1] + distance * direction[1], target[2] + distance * direction[2]] };
 }
+
+/** Weather values the scenic 3D view reacts to. Both come straight from the payload's current_weather. */
+export type SceneWeather = { cloudCoverPct: number; ghiWm2: number };
+export type SceneCloud = { position: Vec3; scale: number };
+export const sceneSky = { maxClouds: 14, cloudHeight: 9, fullSunGhi: 1000 } as const;
+const fraction = (value: number) => value - Math.floor(value);
+/**
+ * Presentation of the supplied weather. Cloud count follows cloud cover and light strength follows GHI.
+ * The payload has no sun position, so where the sun sits is illustrative and fixed.
+ */
+export function getSceneEnvironment(weather: SceneWeather, bounds: FarmSceneLayout["bounds"]) {
+  const cover = Math.min(1, Math.max(0, weather.cloudCoverPct / 100));
+  const brightness = Math.min(1, Math.max(0, weather.ghiWm2 / sceneSky.fullSunGhi));
+  const cloudCount = Math.ceil(cover * sceneSky.maxClouds);
+  const spanX = bounds.width / 2 + 12, spanZ = bounds.depth / 2 + 8;
+  // Deterministic placement: the same payload always draws the same sky.
+  const clouds: SceneCloud[] = Array.from({ length: cloudCount }, (_, index) => ({
+    position: [(fraction(Math.sin(index * 12.9898 + 1.3) * 43758.5453) * 2 - 1) * spanX, sceneSky.cloudHeight + fraction(Math.sin(index * 4.1 + 2.7) * 1375.31) * 4, (fraction(Math.sin(index * 78.233 + 0.7) * 24634.6345) * 2 - 1) * spanZ],
+    scale: 1.5 + fraction(Math.sin(index * 3.7 + 5.1) * 9871.13) * 1.4,
+  }));
+  // High and slightly in front of the rows, so the tilted panel faces are lit rather than silhouetted.
+  const sunPosition: Vec3 = [-(bounds.width / 2 + 14), 22, bounds.depth * 0.1];
+  return { cloudCount, clouds, sunPosition, brightness, sunIntensity: 0.8 + 3 * brightness, skyIntensity: 0.6 + 0.8 * brightness * (1 - 0.5 * cover), shadowExtent: Math.max(bounds.width, bounds.depth) / 2 + 24 };
+}
+export type SceneEnvironment = ReturnType<typeof getSceneEnvironment>;
