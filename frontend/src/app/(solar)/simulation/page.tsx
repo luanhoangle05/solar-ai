@@ -9,6 +9,9 @@ import { CandidateTable } from "@/components/optimization/candidate-table";
 import { OptimizationInsight } from "@/components/optimization/optimization-analysis";
 import { loadFrontendDataResult } from "@/lib/frontend-data.server";
 import { getScenarioView } from "@/lib/simulation";
+import { getCommandCenterView } from "@/lib/command-center";
+import { AgentCommandCenter } from "@/components/simulation/agent-command-center";
+import { SolarFarmSimulation } from "@/components/simulation/solar-farm-simulation";
 import { formatAngle } from "@/lib/formatters";
 export const metadata = { title: "Simulation | SolarAI" };
 export default async function Page() {
@@ -18,9 +21,8 @@ export default async function Page() {
   return <InspectionPage data={data} icon={Workflow} title="Simulation" label="RECORDED SCENARIO" description="Review the candidate-angle scenario and decision path contained in the current SolarAI payload.">
     <div className="inspect-grid inspect-scenario">
       <ManagerDecision data={data} summary={view.agents}/>
-      <OperationsPanel title="Recorded Scenario Pipeline" icon={Workflow} className="inspect-wide inspect-pipeline" meta={<span className="ops-note">Payload evidence · read only</span>}>
-        <ol className="inspect-stages">{view.stages.map((stage,i)=><li key={stage.title} data-available={stage.available}><span className="inspect-step">{String(i+1).padStart(2,"0")}</span><h3>{stage.title}</h3><p>{stage.evidence}</p></li>)}</ol><p className="inspect-note">Read from input to decision. Stage numbers explain the recorded data path; they do not indicate runtime progress.</p>
-      </OperationsPanel>
+      <AgentCommandCenter view={getCommandCenterView(data)}/>
+      <SolarFarmSimulation data={{farm_status:data.farm_status,metadata:data.metadata,optimization:data.optimization,decision:data.decision,safety:data.safety,current_weather:data.current_weather,candidate_predictions:data.candidate_predictions}}/>
       <OperationsPanel title="Scenario Input" icon={ListFilter} className="inspect-input"><div className="inspect-context"><PredictionFacts metadata={data.metadata}/><Facts rows={[["Current row angle",formatAngle(view.input.currentAngle)],["Selected model",view.input.model],["Candidate count",view.input.candidateCount],["Temperature",view.input.weather?.temperature ?? "Unavailable"],["Wind speed / gust",view.input.weather ? `${view.input.weather.wind} / ${view.input.weather.gust}` : "Unavailable"]]}/></div></OperationsPanel>
       <div className="inspect-wide"><CandidateEnergyProfile candidates={summary.candidates} current={summary.currentAngle} recommended={summary.recommendedAngle} rawAngles={summary.rawMaxima.map(point=>point.angle_deg)} horizon={view.input.horizon} scope={view.input.scope}/></div>
       <div className="inspect-wide"><OptimizationInsight summary={summary}/></div>

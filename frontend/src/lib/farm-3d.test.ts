@@ -99,3 +99,48 @@ describe("camera and defensive empty inputs", () => {
   it("produces a finite camera for an empty farm", () => { const result = buildFarmSceneLayout({ ...data.farm_status, zones: [], rows: [] }); expect(getCameraPreset(result, 0).position.every(Number.isFinite)).toBe(true); });
   it("preserves noncontiguous membership order", () => { const farm = structuredClone(data.farm_status); farm.zones[0].row_ids = ["row-012", "row-002"]; expect(buildFarmSceneLayout(farm).zones[0].rows.map(row => row.row.row_id)).toEqual(["row-012", "row-002"]); });
 });
+
+import { cameraDirections, getSceneEnvironment } from "./farm-3d";
+describe("scenic sky follows the supplied weather", () => {
+  const bounds = { width: 60, depth: 60, center: [0, 0, 0] as [number, number, number] };
+  it("draws no clouds for a clear sky", () => expect(getSceneEnvironment({ cloudCoverPct: 0, ghiWm2: 900 }, bounds).clouds).toEqual([]));
+  it("draws more clouds as cloud cover rises", () => expect([15, 50, 100].map(cloudCoverPct => getSceneEnvironment({ cloudCoverPct, ghiWm2: 500 }, bounds).cloudCount)).toEqual([8, 24, 48]));
+  it("brightens the sun with GHI", () => expect(getSceneEnvironment({ cloudCoverPct: 10, ghiWm2: 850 }, bounds).sunIntensity).toBeGreaterThan(getSceneEnvironment({ cloudCoverPct: 10, ghiWm2: 100 }, bounds).sunIntensity));
+  it("clamps out-of-range inputs", () => expect(getSceneEnvironment({ cloudCoverPct: 250, ghiWm2: 5000 }, bounds)).toMatchObject({ cloudCount: 48, brightness: 1 }));
+  it("is deterministic for the same payload", () => expect(getSceneEnvironment({ cloudCoverPct: 40, ghiWm2: 600 }, bounds)).toEqual(getSceneEnvironment({ cloudCoverPct: 40, ghiWm2: 600 }, bounds)));
+  it("keeps the default camera direction unless the scenic one is requested", () => expect(cameraDirections.overview).toEqual([0.18, 0.72, 0.67]));
+});
+
+import { getCloudDriftX, getSunArcPosition, sceneSky } from "./farm-3d";
+import { getRowCloseUpPreset, rowCloseUp } from "./farm-3d";
+import { getTrackingTiltDeg } from "./farm-3d";
+describe("illustrative sun-tracking tilt", () => {
+  const range = { minDeg: 30, maxDeg: 60 };
+  it("starts at the steepest candidate angle while the sun is lowest", () => expect(getTrackingTiltDeg(0, range)).toBe(60));
+  it("is flattest when the sun is highest", () => expect(getTrackingTiltDeg(sceneSky.sunPeriodSeconds / 4, range)).toBeCloseTo(30));
+  it("never leaves the candidate range", () => { for (let second = 0; second <= sceneSky.sunPeriodSeconds; second++) { const tilt = getTrackingTiltDeg(second, range); expect(tilt).toBeGreaterThanOrEqual(30 - 1e-9); expect(tilt).toBeLessThanOrEqual(60 + 1e-9); } });
+  it("moves opposite to the sun's height", () => expect(getTrackingTiltDeg(sceneSky.sunPeriodSeconds / 6, range)).toBeLessThan(getTrackingTiltDeg(sceneSky.sunPeriodSeconds / 24, range)));
+  it("stays put when only one angle was evaluated", () => expect(getTrackingTiltDeg(17, { minDeg: 35, maxDeg: 35 })).toBe(35));
+});
+describe("row close-up camera", () => {
+  let scene: FarmSceneLayout;
+  beforeAll(async () => { scene = buildFarmSceneLayout((await loadFrontendData()).farm_status); });
+  it("looks at the clicked row", () => expect(getRowCloseUpPreset(scene, "row-001")?.target).toEqual(getSceneRow(scene, "row-001")?.position));
+  it("stands a fixed short distance away", () => { const preset = getRowCloseUpPreset(scene, "row-001")!; expect(Math.hypot(...preset.position.map((value, axis) => value - preset.target[axis]))).toBeCloseTo(rowCloseUp.distance); });
+  it("stands in front of and above the panel faces", () => { const preset = getRowCloseUpPreset(scene, "row-001")!; expect(preset.position[2]).toBeGreaterThan(preset.target[2]); expect(preset.position[1]).toBeGreaterThan(preset.target[1]); });
+  it("is much closer than the row-fit preset", () => expect(getRowCloseUpPreset(scene, "row-001")!.distance).toBeLessThan(getCameraPreset(scene, 2, "row-001").distance));
+  it("has no close-up for an unknown row", () => expect(getRowCloseUpPreset(scene, "row-999")).toBeNull());
+});
+describe("illustrative sun and cloud motion", () => {
+  const bounds = { width: 60, depth: 60, center: [0, 0, 0] as [number, number, number] };
+  const environment = getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850, windSpeedKmh: 14 }, bounds);
+  it("starts the sun at its resting position", () => expect(getSunArcPosition(0)).toEqual(environment.sunPosition));
+  it("returns the sun to the start after one period", () => getSunArcPosition(sceneSky.sunPeriodSeconds).forEach((value, axis) => expect(value).toBeCloseTo(environment.sunPosition[axis])));
+  it("carries the sun across the view by half a period", () => expect(Math.abs(getSunArcPosition(sceneSky.sunPeriodSeconds / 2)[0] - environment.sunPosition[0])).toBeGreaterThan(100));
+  it("keeps the sun at a fixed distance, ahead of the scenic camera", () => { for (const second of [0, 17, 30, 60, 95]) { const [x, y, z] = getSunArcPosition(second); expect(Math.hypot(x, y, z)).toBeCloseTo(sceneSky.sunDistance); expect(z).toBeLessThan(0); } });
+  it("keeps the sun above the horizon for the whole arc", () => expect(Math.min(...Array.from({ length: 120 }, (_, second) => getSunArcPosition(second)[1]))).toBeGreaterThanOrEqual(environment.sunPosition[1] - 1e-9));
+  it("drifts clouds faster in stronger wind", () => expect(getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850, windSpeedKmh: 40 }, bounds).cloudDrift).toBeGreaterThan(environment.cloudDrift));
+  it("still drifts gently when no wind speed is supplied", () => expect(getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850 }, bounds).cloudDrift).toBe(0.8));
+  it("moves a cloud along x over time", () => expect(getCloudDriftX(0, environment, 10)).toBeCloseTo(10 * environment.cloudDrift));
+  it("wraps a cloud back inside the drift span", () => { for (const seconds of [0, 50, 500, 5000]) { const x = getCloudDriftX(12, environment, seconds); expect(Math.abs(x)).toBeLessThanOrEqual(environment.driftSpan); } });
+});

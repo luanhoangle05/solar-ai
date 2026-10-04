@@ -3,10 +3,15 @@
 import dynamic from "next/dynamic";
 import { Component, type ReactNode } from "react";
 import type { FarmStatus } from "@/types/solar";
+import type { SceneWeather, TrackingRange } from "@/lib/farm-3d";
 
 export type Farm3DProps = {
   farm: FarmStatus; targetId: string; selectedRow: string | null; selectedZone: string | null;
   onRow: (id: string) => void; onZone: (id: string) => void; onExit: () => void;
+  /** When supplied, the scene draws a sun, clouds and shadows driven by these payload values. */
+  weather?: SceneWeather;
+  /** When supplied with weather, the scene offers an illustrative sun-tracking demo within this tilt range. */
+  trackingRange?: TrackingRange;
 };
 const Scene = dynamic(() => import("./farm-3d-scene"), {
   ssr: false,
