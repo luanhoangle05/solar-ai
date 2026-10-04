@@ -4,10 +4,17 @@ import { getZoneColor, zoneColors } from "./zones";
 import { dataStatusVariants } from "./status";
 import { dataStatusSchema } from "../schemas/frontend-data";
 import { loadFrontendData } from "../lib/frontend-data.server";
+import SolarLayout from "../app/(solar)/layout";
 describe("application navigation", () => {
   it("has unique paths and the intended primary routes", () => {
     expect(new Set(navigation.map(item => item.href)).size).toBe(navigation.length);
     expect(navigation.filter(item => item.primary).map(item => item.href)).toEqual(["/", "/simulation", "/optimization", "/analytics"]);
+    expect(navigation.map(item => item.href)).toEqual(["/", "/simulation", "/optimization", "/weather", "/analytics", "/settings"]);
+    expect(navigation.map(item => item.label)).not.toEqual(expect.arrayContaining(["Agents", "Farm"]));
+  });
+  it("uses the sidebar-free workspace shell for solar routes", () => {
+    const layout = SolarLayout({children:"Content"});
+    expect(layout.props.variant).toBe("workspace");
   });
   it.each([
     ["/", "/", true], ["/farm", "/", false],
