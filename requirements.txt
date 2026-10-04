@@ -1,4 +1,11 @@
-# Python 3.11. Approved Luan processing, PostgreSQL and provider dependencies.
+# Python 3.11. Approved runtime dependencies, by owner.
+
+# Duy: modeling (boosting model, feature matrices, LSTM).
+numpy==2.4.6
+xgboost==3.2.0
+torch==2.14.1  # LSTM model; the CPU build is enough
+
+# Luan: processing, PostgreSQL and weather provider.
 pandas==2.3.3
 pvlib==0.13.1
 psycopg[binary]==3.3.6
