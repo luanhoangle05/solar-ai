@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type CSSProperties, type RefObject } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type CSSProperties, type RefObject } from "react";
 import { Canvas, useThree, type ThreeEvent } from "@react-three/fiber";
-import { Html, OrbitControls } from "@react-three/drei";
-import { AdditiveBlending, CanvasTexture, Color, InstancedMesh, Object3D, SRGBColorSpace } from "three";
+import { Cloud, Clouds, Environment, Html, OrbitControls, Sky as DreiSky } from "@react-three/drei";
+import { AdditiveBlending, CanvasTexture, Color, InstancedMesh, MeshBasicMaterial, Object3D, RepeatWrapping, SRGBColorSpace } from "three";
 import { Box, Crosshair, Eye, RotateCcw, ScanLine } from "lucide-react";
 import { getZoneColor } from "@/config/zones";
 import { rowStatePresentation } from "@/config/row-states";
@@ -31,7 +31,7 @@ function makePanelTexture() {
   return texture;
 }
 
-function PanelInstances({ zone, texture, onRow, onHover }: { zone: SceneZone; texture: CanvasTexture; onRow: (id: string) => void; onHover: (id: string | null) => void }) {
+function PanelInstances({ zone, texture, scenic, onRow, onHover }: { zone: SceneZone; texture: CanvasTexture; scenic: boolean; onRow: (id: string) => void; onHover: (id: string | null) => void }) {
   const mesh = useRef<InstancedMesh>(null);
   const invalidate = useThree(state => state.invalidate);
   useLayoutEffect(() => {
@@ -53,7 +53,7 @@ function PanelInstances({ zone, texture, onRow, onHover }: { zone: SceneZone; te
   }
   return <instancedMesh ref={mesh} castShadow receiveShadow args={[undefined, undefined, zone.panels.length]} onClick={pick} onPointerMove={event => { event.stopPropagation(); onHover(getInstanceRowId(zone, event.instanceId)); }} onPointerOut={() => onHover(null)}>
     <boxGeometry args={[sceneDimensions.panelWidth, 0.065, sceneDimensions.panelDepth]}/>
-    <meshStandardMaterial map={texture} metalness={0.36} roughness={0.48}/>
+    {scenic ? <meshPhysicalMaterial map={texture} metalness={0.15} roughness={0.16} clearcoat={1} clearcoatRoughness={0.06} envMapIntensity={1.15}/> : <meshStandardMaterial map={texture} metalness={0.36} roughness={0.48}/>}
   </instancedMesh>;
 }
 
@@ -92,42 +92,99 @@ function RowMarker({ row, target, labels, portal }: { row: SceneRow; target: boo
   </group>;
 }
 
-const skyColor = "#123c66";
-function makeGlowTexture() {
+// Procedural textures only: nothing is downloaded, so the scene works offline.
+function makeRadialTexture(stops: [number, string][]) {
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
   const context = canvas.getContext("2d");
   if (context) {
     const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0, "rgba(255,238,170,1)"); gradient.addColorStop(0.25, "rgba(255,214,110,.55)"); gradient.addColorStop(1, "rgba(255,200,90,0)");
+    stops.forEach(([offset, color]) => gradient.addColorStop(offset, color));
     context.fillStyle = gradient; context.fillRect(0, 0, 128, 128);
   }
   const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
   return texture;
 }
-const cloudPuffs: { offset: Vec3; size: number }[] = [
-  { offset: [0, 0, 0], size: 1 }, { offset: [1.05, -0.1, 0.15], size: 0.78 }, { offset: [-1.1, -0.12, -0.1], size: 0.72 },
-  { offset: [0.45, 0.42, -0.2], size: 0.66 }, { offset: [-0.5, 0.3, 0.3], size: 0.6 }, { offset: [1.85, -0.25, -0.05], size: 0.5 },
-];
-/** Sun, clouds, ground and shadow-casting light. Strength and cloud count follow the payload weather; the sun's place is illustrative. */
-function Sky({ environment, layout }: { environment: SceneEnvironment; layout: FarmSceneLayout }) {
-  const glow = useMemo(() => makeGlowTexture(), []);
-  useEffect(() => () => glow.dispose(), [glow]);
-  const extent = environment.shadowExtent;
+/** Deterministic pseudo-random sequence, so textures are identical on every load. */
+function sequence(seed: number) { let state = seed; return () => { state = (state * 1664525 + 1013904223) % 4294967296; return state / 4294967296; }; }
+function makeCloudPuffUrl() {
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
+  const context = canvas.getContext("2d"); const next = sequence(7);
+  if (context) for (let index = 0; index < 26; index++) {
+    const x = 128 + (next() - 0.5) * 120, y = 128 + (next() - 0.5) * 90, radius = 34 + next() * 46;
+    const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, "rgba(255,255,255,.5)"); gradient.addColorStop(1, "rgba(255,255,255,0)");
+    context.fillStyle = gradient; context.fillRect(0, 0, 256, 256);
+  }
+  return canvas.toDataURL();
+}
+function makeGroundTexture(repeat: number) {
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
+  const context = canvas.getContext("2d"); const next = sequence(11);
+  if (context) {
+    context.fillStyle = "#5d6f3c"; context.fillRect(0, 0, 256, 256);
+    const tones = ["#4c6131", "#6a7b44", "#77804d", "#55683a", "#8a8558", "#44592d"];
+    for (let index = 0; index < 5200; index++) { context.fillStyle = tones[Math.floor(next() * tones.length)]; context.globalAlpha = 0.25 + next() * 0.45; context.fillRect(next() * 256, next() * 256, 1 + next() * 3, 1 + next() * 3); }
+    context.globalAlpha = 1;
+  }
+  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
+  texture.wrapS = texture.wrapT = RepeatWrapping; texture.repeat.set(repeat, repeat); texture.anisotropy = 8;
+  return texture;
+}
+/** A photovoltaic module: dark cells with busbars inside an aluminium frame. */
+function makeModuleTexture() {
+  const canvas = document.createElement("canvas"); canvas.width = 256; canvas.height = 384;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.fillStyle = "#c9d2da"; context.fillRect(0, 0, 256, 384);
+    context.fillStyle = "#0a1630"; context.fillRect(8, 8, 240, 368);
+    for (let column = 0; column < 6; column++) for (let row = 0; row < 9; row++) {
+      const x = 12 + column * 39, y = 12 + row * 40;
+      const cell = context.createLinearGradient(x, y, x + 36, y + 37);
+      cell.addColorStop(0, "#17346e"); cell.addColorStop(1, "#0d2150");
+      context.fillStyle = cell; context.fillRect(x, y, 36, 37);
+      context.strokeStyle = "rgba(190,205,225,.5)"; context.lineWidth = 0.6;
+      for (const bar of [9, 18, 27]) { context.beginPath(); context.moveTo(x + bar, y); context.lineTo(x + bar, y + 37); context.stroke(); }
+    }
+  }
+  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace; texture.anisotropy = 8;
+  return texture;
+}
+/**
+ * Atmosphere, sun, clouds, ground and shadow-casting light. Haze and cloud count follow the payload's
+ * cloud cover and light strength follows its GHI; the sun's place is illustrative (no solar position is supplied).
+ */
+function SceneSky({ environment, layout }: { environment: SceneEnvironment; layout: FarmSceneLayout }) {
   const reach = Math.max(layout.bounds.width, layout.bounds.depth);
+  const glow = useMemo(() => makeRadialTexture([[0, "rgba(255,244,200,1)"], [0.22, "rgba(255,222,140,.6)"], [1, "rgba(255,205,110,0)"]]), []);
+  const shade = useMemo(() => makeRadialTexture([[0, "rgba(0,0,0,.85)"], [0.55, "rgba(0,0,0,.4)"], [1, "rgba(0,0,0,0)"]]), []);
+  const ground = useMemo(() => makeGroundTexture(reach * 1.4), [reach]);
+  const cloudUrl = useMemo(() => makeCloudPuffUrl(), []);
+  useEffect(() => () => { glow.dispose(); shade.dispose(); }, [glow, shade]);
+  useEffect(() => () => ground.dispose(), [ground]);
+  const extent = environment.shadowExtent;
+  const [sunX, sunY, sunZ] = environment.sunPosition;
   const glowSize = 9 + 16 * environment.brightness;
+  // Memoized so the reflection cube map is rendered once, not on every hover re-render.
+  const atmosphere = useMemo(() => <DreiSky distance={900} sunPosition={environment.sunPosition} turbidity={3 + 9 * environment.cover} rayleigh={0.9 + environment.cover} mieCoefficient={0.006} mieDirectionalG={0.86}/>, [environment.sunPosition, environment.cover]);
   return <>
-    <color attach="background" args={[skyColor]}/><fog attach="fog" args={[skyColor, reach * 1.6, reach * 5.5]}/>
-    <ambientLight intensity={0.45 + environment.skyIntensity * 0.35}/><hemisphereLight args={["#cfe8ff", "#24503a", environment.skyIntensity]}/>
-    <directionalLight castShadow color="#fff1cf" position={[environment.sunPosition[0] * 3, environment.sunPosition[1] * 3, environment.sunPosition[2] * 3]} intensity={environment.sunIntensity}
-      shadow-mapSize={[2048, 2048]} shadow-bias={-0.0006} shadow-camera-near={1} shadow-camera-far={reach * 8} shadow-camera-left={-extent} shadow-camera-right={extent} shadow-camera-top={extent} shadow-camera-bottom={-extent}/>
-    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.36, 0]}><planeGeometry args={[reach * 14, reach * 14]}/><meshStandardMaterial color="#1f5140" roughness={1}/></mesh>
+    {atmosphere}<Environment resolution={128}>{atmosphere}</Environment>
+    <fog attach="fog" args={["#b4c8da", reach * 2.2, reach * 7]}/>
+    <ambientLight intensity={0.18}/><hemisphereLight args={["#d7eaff", "#54603a", environment.skyIntensity * 0.45]}/>
+    <directionalLight castShadow color="#fff0d2" position={[sunX * 3, sunY * 3, sunZ * 3]} intensity={environment.sunIntensity}
+      shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.03} shadow-radius={5} shadow-camera-near={1} shadow-camera-far={reach * 8} shadow-camera-left={-extent} shadow-camera-right={extent} shadow-camera-top={extent} shadow-camera-bottom={-extent}/>
+    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.36, 0]}><planeGeometry args={[reach * 14, reach * 14]}/><meshStandardMaterial map={ground} roughness={1} envMapIntensity={0.35}/></mesh>
     <group position={environment.sunPosition}>
-      <mesh><sphereGeometry args={[2.1, 24, 24]}/><meshBasicMaterial color="#fff0b8" toneMapped={false} fog={false}/></mesh>
+      <mesh><sphereGeometry args={[2.1, 24, 24]}/><meshBasicMaterial color="#fff3c4" toneMapped={false} fog={false}/></mesh>
       <sprite scale={[glowSize, glowSize, 1]}><spriteMaterial map={glow} blending={AdditiveBlending} depthWrite={false} transparent toneMapped={false} fog={false}/></sprite>
     </group>
-    {environment.clouds.map((cloud, index) => <group key={index} position={cloud.position} scale={[cloud.scale * 1.5, cloud.scale * 0.62, cloud.scale]}>
-      {cloudPuffs.map((puff, puffIndex) => <mesh key={puffIndex} castShadow position={puff.offset}><sphereGeometry args={[puff.size, 14, 12]}/><meshStandardMaterial color="#eef5ff" roughness={1} transparent opacity={0.93}/></mesh>)}
-    </group>)}
+    {/* The cloud texture decodes asynchronously; this boundary lets the farm render first and the clouds appear after. */}
+    <Suspense fallback={null}><Clouds texture={cloudUrl} limit={420} material={MeshBasicMaterial}>
+      {environment.clouds.map((cloud, index) => <Cloud key={index} seed={index + 1} position={cloud.position} bounds={[3.4 * cloud.scale, 0.8 * cloud.scale, 1.9 * cloud.scale]} volume={4.4 * cloud.scale} segments={22} opacity={1} speed={0.14} fade={260} color="#ffffff"/>)}
+    </Clouds></Suspense>
+    {/* Cloud sprites cannot cast real shadows, so each gets a soft ground shadow offset away from the sun. */}
+    {environment.clouds.map((cloud, index) => <mesh key={index} rotation={[-Math.PI / 2, 0, 0]} position={[cloud.position[0] - sunX / sunY * cloud.position[1], 0.16, cloud.position[2] - sunZ / sunY * cloud.position[1]]}>
+      <planeGeometry args={[11 * cloud.scale, 7 * cloud.scale]}/><meshBasicMaterial map={shade} transparent opacity={0.42} depthWrite={false}/>
+    </mesh>)}
   </>;
 }
 
@@ -157,11 +214,12 @@ function ContextGuard({ onFailure }: { onFailure: () => void }) {
   return null;
 }
 function FarmGeometry({ layout, props, labels, onHover, portal, environment }: { layout: FarmSceneLayout; props: Farm3DProps; labels: boolean; onHover: (id: string | null) => void; portal: RefObject<HTMLDivElement>; environment: SceneEnvironment | null }) {
-  const texture = useMemo(() => makePanelTexture(), []);
+  const scenic = environment !== null;
+  const texture = useMemo(() => scenic ? makeModuleTexture() : makePanelTexture(), [scenic]);
   useEffect(() => () => texture.dispose(), [texture]);
   const target = getSceneRow(layout, props.targetId); const selected = getSceneRow(layout, props.selectedRow);
   return <>
-    {environment ? <Sky environment={environment} layout={layout}/> : <><color attach="background" args={["#081823"]}/>
+    {environment ? <SceneSky environment={environment} layout={layout}/> : <><color attach="background" args={["#081823"]}/>
     <ambientLight intensity={0.7}/><hemisphereLight args={["#d5edff", "#183125", 1.1]}/><directionalLight position={[-20, 50, 20]} intensity={1.5}/></>}
     <mesh receiveShadow position={[0, -0.35, 0]}><boxGeometry args={[layout.bounds.width + 9, 0.5, layout.bounds.depth + 9]}/><meshStandardMaterial color="#132a30" roughness={0.95}/></mesh>
     <RowAccents rows={layout.rows}/>
@@ -170,7 +228,7 @@ function FarmGeometry({ layout, props, labels, onHover, portal, environment }: {
       return <group key={zone.id}>
         <mesh receiveShadow position={zone.position}><boxGeometry args={[zone.width, 0.12, zone.depth]}/><meshStandardMaterial color={props.selectedZone === zone.id ? "#213c43" : "#182f35"}/></mesh>
         <Border center={[zone.position[0], 0.13, zone.position[2]]} width={zone.width} depth={zone.depth} color={color} thickness={props.selectedZone === zone.id ? 0.22 : 0.1}/>
-        <PanelInstances zone={zone} texture={texture} onRow={props.onRow} onHover={onHover}/>
+        <PanelInstances zone={zone} texture={texture} scenic={scenic} onRow={props.onRow} onHover={onHover}/>
         {labels && <Html portal={portal} position={[zone.position[0], 2.5, zone.position[2] - zone.depth / 2 + 0.5]} center zIndexRange={[15, 0]}><button className="f3-zone-label" style={{ "--zone-color": getZoneColor(zone.id) } as CSSProperties} type="button" aria-pressed={props.selectedZone === zone.id} onClick={() => props.onZone(zone.id)}><strong>{formatZoneName(zone.id)}</strong><span>{zone.rows.length} rows · {zone.panels.length} panels</span></button></Html>}
       </group>;
     })}
@@ -200,7 +258,7 @@ export default function Farm3DScene(props: Farm3DProps) {
       <button type="button" aria-pressed={labels} onClick={() => setLabels(value => !value)}><Eye size={14}/>{labels ? "Hide labels" : "Show labels"}</button>
     </div>
     {failed ? <SceneUnavailable onExit={props.onExit}/> : <div className="f3-canvas" data-hovered={!!hoverRow} role="group" aria-label="Schematic 3D farm. Drag to orbit, right-drag to pan, scroll or pinch to zoom. Use the row picker or table for keyboard inspection.">
-      <Canvas shadows={environment !== null} frameloop="demand" dpr={[1, 1.5]} camera={{ fov: 42, near: 0.1, far: 2000 }} gl={{ antialias: true, powerPreference: "low-power" }} fallback={<SceneUnavailable onExit={props.onExit}/>}>
+      <Canvas shadows={environment !== null} frameloop={environment !== null ? "always" : "demand"} dpr={[1, 1.5]} camera={{ fov: 42, near: 0.1, far: 2000 }} gl={{ antialias: true, powerPreference: "low-power" }} fallback={<SceneUnavailable onExit={props.onExit}/>}>
         <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={request} scenic={environment !== null}/><FarmGeometry layout={layout} props={props} labels={labels} onHover={setHovered} portal={labelPortal} environment={environment}/>
       </Canvas>
       <div className="f3-label-layer" ref={labelPortal}/>
@@ -208,6 +266,6 @@ export default function Farm3DScene(props: Farm3DProps) {
       <div className="f3-hover" aria-live="off">{hoverRow ? <><strong>{hoverRow.row_id}</strong> {formatAngle(hoverRow.angle_deg)} · {hoverRow.current_state} · Recorded {hoverRow.action}</> : "Drag to orbit · Scroll / pinch to zoom · Right-drag to pan"}</div>
     </div>}
     <div className="f3-legend"><span className="f3-target-key">⊕ Control target</span><span>◇ Selected row</span>{Object.entries(rowStatePresentation).map(([state, presentation]) => <span key={state}><presentation.icon size={12} style={{ color: presentation.color }}/>{state}</span>)}</div>
-    <p className="f3-note">Schematic 3D layout. Zone membership, row state, and tilt come from the loaded farm contract; geographic coordinates are not available. Panel tilt uses one illustrative axis; geographic orientation is not provided. {environment ? `Cloud count follows the supplied cloud cover (${environment.cloudCount} drawn) and light strength follows the supplied GHI; the sun position is illustrative because the payload has no solar-position data.` : "Scene lighting is illustrative, not solar-position data."}</p>
+    <p className="f3-note">Schematic 3D layout. Zone membership, row state, and tilt come from the loaded farm contract; geographic coordinates are not available. Panel tilt uses one illustrative axis; geographic orientation is not provided. {environment ? `Cloud count and haze follow the supplied cloud cover (${environment.cloudCount} clouds drawn) and light strength follows the supplied GHI; the sun position is illustrative because the payload has no solar-position data.` : "Scene lighting is illustrative, not solar-position data."}</p>
   </FarmPanel>;
 }

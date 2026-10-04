@@ -32,6 +32,8 @@
 .sfs-scene-bar button[aria-pressed=true] { background:#0f4f86; color:#fff; box-shadow:0 0 0 1px var(--sfs-cyan); }
 .sfs-scene .fx-panel { border:0; border-radius:0; background:transparent; flex:1; }
 .sfs-scene .f3-canvas { height:440px; }
+/* The daylight scene is bright, so overlay text gets its own dark chip. */
+.sfs-scene .f3-scene-caption { padding:7px 10px; border-radius:6px; background:#071a2dd9; border:1px solid #2c495c; }
 .sfs-scene .fx-map { grid-column:auto; grid-row:auto; }
 .sfs-row { display:flex; flex-direction:column; gap:12px; border:1px solid #1b4467; border-radius:11px; padding:14px; background:#071c33; min-width:0; }
 .sfs-row-head { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:start; }

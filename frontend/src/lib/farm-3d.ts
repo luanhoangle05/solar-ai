@@ -88,6 +88,6 @@ export function getSceneEnvironment(weather: SceneWeather, bounds: FarmSceneLayo
   }));
   // High and slightly in front of the rows, so the tilted panel faces are lit rather than silhouetted.
   const sunPosition: Vec3 = [-(bounds.width / 2 + 14), 22, bounds.depth * 0.1];
-  return { cloudCount, clouds, sunPosition, brightness, sunIntensity: 0.8 + 3 * brightness, skyIntensity: 0.6 + 0.8 * brightness * (1 - 0.5 * cover), shadowExtent: Math.max(bounds.width, bounds.depth) / 2 + 24 };
+  return { cover, cloudCount, clouds, sunPosition, brightness, sunIntensity: 0.8 + 3 * brightness, skyIntensity: 0.6 + 0.8 * brightness * (1 - 0.5 * cover), shadowExtent: Math.max(bounds.width, bounds.depth) / 2 + 24 };
 }
 export type SceneEnvironment = ReturnType<typeof getSceneEnvironment>;
