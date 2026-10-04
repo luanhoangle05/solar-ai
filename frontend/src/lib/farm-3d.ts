@@ -43,8 +43,8 @@ export function getInstanceRowId(zone: SceneZone, instanceId: number | undefined
 export function getSceneRow(layout: FarmSceneLayout, id: string | null) {
   return layout.rows.find(item => item.row.row_id === id) ?? null;
 }
-/** Default overview direction, and a lower one that leaves room for the sun and clouds around the farm. */
-export const cameraDirections = { overview: [0.18, 0.72, 0.67], scenic: [0.3, 0.5, 0.82] } as const satisfies Record<string, Vec3>;
+/** Default overview direction, and a near-ground one that puts the horizon and sky in the top of the frame. */
+export const cameraDirections = { overview: [0.18, 0.72, 0.67], scenic: [0.35, 0.15, 0.92] } as const satisfies Record<string, Vec3>;
 export function getCameraPreset(layout: FarmSceneLayout, aspect: number, rowId: string | null = null, from: Vec3 = cameraDirections.overview): { position: Vec3; target: Vec3; distance: number } {
   const row = getSceneRow(layout, rowId);
   const target: Vec3 = row ? [...row.position] : [...layout.bounds.center];
@@ -70,7 +70,7 @@ export function getCameraPreset(layout: FarmSceneLayout, aspect: number, rowId: 
 /** Weather values the scenic 3D view reacts to. Both come straight from the payload's current_weather. */
 export type SceneWeather = { cloudCoverPct: number; ghiWm2: number; windSpeedKmh?: number };
 export type SceneCloud = { position: Vec3; scale: number };
-export const sceneSky = { maxClouds: 48, cloudHeight: 9, fullSunGhi: 1000, sunPeriodSeconds: 120, maxWindKmh: 120 } as const;
+export const sceneSky = { maxClouds: 48, cloudHeight: 16, fullSunGhi: 1000, sunPeriodSeconds: 120, maxWindKmh: 120, sunDistance: 400, sunSweepDeg: 26, sunMinElevationDeg: 5, sunLiftDeg: 5 } as const;
 const fraction = (value: number) => value - Math.floor(value);
 /**
  * Presentation of the supplied weather. Cloud count follows cloud cover and light strength follows GHI.
@@ -80,27 +80,32 @@ export function getSceneEnvironment(weather: SceneWeather, bounds: FarmSceneLayo
   const cover = Math.min(1, Math.max(0, weather.cloudCoverPct / 100));
   const brightness = Math.min(1, Math.max(0, weather.ghiWm2 / sceneSky.fullSunGhi));
   const cloudCount = Math.ceil(cover * sceneSky.maxClouds);
-  const spanX = bounds.width / 2 + 12, spanZ = bounds.depth / 2 + 8;
+  // Clouds sit high and mostly beyond the farm, so from the low camera they appear in the sky.
+  const spanX = (bounds.width / 2 + 12) * 2.4, spanZ = bounds.depth / 2 + 8;
   // Deterministic placement: the same payload always draws the same sky.
   const clouds: SceneCloud[] = Array.from({ length: cloudCount }, (_, index) => ({
-    position: [(fraction(Math.sin(index * 12.9898 + 1.3) * 43758.5453) * 2 - 1) * spanX, sceneSky.cloudHeight + fraction(Math.sin(index * 4.1 + 2.7) * 1375.31) * 4, (fraction(Math.sin(index * 78.233 + 0.7) * 24634.6345) * 2 - 1) * spanZ],
-    scale: 1.5 + fraction(Math.sin(index * 3.7 + 5.1) * 9871.13) * 1.4,
+    position: [(fraction(Math.sin(index * 12.9898 + 1.3) * 43758.5453) * 2 - 1) * spanX, sceneSky.cloudHeight + fraction(Math.sin(index * 4.1 + 2.7) * 1375.31) * 14, spanZ * (0.4 - fraction(Math.sin(index * 78.233 + 0.7) * 24634.6345) * 4.4)],
+    scale: 2.4 + fraction(Math.sin(index * 3.7 + 5.1) * 9871.13) * 2.6,
   }));
-  // High and slightly in front of the rows, so the tilted panel faces are lit rather than silhouetted.
-  const sunPosition: Vec3 = [-(bounds.width / 2 + 20), 30, bounds.depth * 0.1];
+  const sunPosition = getSunArcPosition(0);
   // Clouds drift faster in stronger supplied wind; the payload has no wind direction, so the heading is illustrative.
   const cloudDrift = 0.25 + 0.03 * Math.min(sceneSky.maxWindKmh, Math.max(0, weather.windSpeedKmh ?? 0));
-  return { cover, cloudCount, clouds, sunPosition, cloudDrift, driftSpan: Math.max(bounds.width, bounds.depth) * 1.1 + 20, depth: bounds.depth, brightness, sunIntensity: 0.8 + 3 * brightness, skyIntensity: 0.6 + 0.8 * brightness * (1 - 0.5 * cover), shadowExtent: Math.max(bounds.width, bounds.depth) / 2 + 24 };
+  return { cover, cloudCount, clouds, sunPosition, cloudDrift, driftSpan: spanX, brightness, sunIntensity: 0.8 + 3 * brightness, skyIntensity: 0.6 + 0.8 * brightness * (1 - 0.5 * cover), shadowExtent: Math.max(bounds.width, bounds.depth) / 2 + 24 };
 }
 export type SceneEnvironment = ReturnType<typeof getSceneEnvironment>;
 /**
- * Where the animated sun is after `seconds`: a slow illustrative arc that starts at `sunPosition`,
- * rises behind the farm, crosses to the other side and returns. It is not a solar-position calculation.
+ * Where the sun is after `seconds`: low in the sky ahead of the scenic camera, sweeping slowly from one side
+ * of the view to the other and back while rising a little. Illustrative only; it is not a solar-position calculation.
  */
-export function getSunArcPosition(environment: Pick<SceneEnvironment, "sunPosition" | "depth">, seconds: number): Vec3 {
-  const swing = Math.cos(seconds * 2 * Math.PI / sceneSky.sunPeriodSeconds), lift = 1 - swing * swing;
-  const [x, y, z] = environment.sunPosition;
-  return [x * swing, y + 6 * lift, z - environment.depth * 0.9 * lift];
+export function getSunArcPosition(seconds: number): Vec3 {
+  const swing = Math.cos(seconds * 2 * Math.PI / sceneSky.sunPeriodSeconds);
+  const [cameraX, , cameraZ] = cameraDirections.scenic, length = Math.hypot(cameraX, cameraZ);
+  // The horizontal direction the scenic camera looks in, turned by the sweep angle.
+  const aheadX = -cameraX / length, aheadZ = -cameraZ / length;
+  const sweep = degreesToRadians(sceneSky.sunSweepDeg) * swing;
+  const elevation = degreesToRadians(sceneSky.sunMinElevationDeg + sceneSky.sunLiftDeg * (1 - swing * swing));
+  const flat = Math.cos(elevation) * sceneSky.sunDistance;
+  return [(aheadX * Math.cos(sweep) - aheadZ * Math.sin(sweep)) * flat, Math.sin(elevation) * sceneSky.sunDistance, (aheadX * Math.sin(sweep) + aheadZ * Math.cos(sweep)) * flat];
 }
 /** A cloud's x position after drifting for `seconds`, wrapped so it re-enters from the far side. */
 export function getCloudDriftX(startX: number, environment: Pick<SceneEnvironment, "cloudDrift" | "driftSpan">, seconds: number): number {

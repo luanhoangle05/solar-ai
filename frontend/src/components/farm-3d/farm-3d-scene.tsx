@@ -3,11 +3,11 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type CSSProperties, type RefObject } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Cloud, Clouds, Environment, Html, OrbitControls, Sky as DreiSky } from "@react-three/drei";
-import { AdditiveBlending, CanvasTexture, Color, InstancedMesh, MeshBasicMaterial, Object3D, RepeatWrapping, SRGBColorSpace, type DirectionalLight, type Group, type Mesh } from "three";
+import { AdditiveBlending, CanvasTexture, Color, InstancedMesh, MeshBasicMaterial, Object3D, RepeatWrapping, SRGBColorSpace, type DirectionalLight, type Group, type Mesh, type ShaderMaterial } from "three";
 import { Box, Crosshair, Eye, RotateCcw, ScanLine } from "lucide-react";
 import { getZoneColor } from "@/config/zones";
 import { rowStatePresentation } from "@/config/row-states";
-import { buildFarmSceneLayout, cameraDirections, getCameraPreset, getCloudDriftX, getInstanceRowId, getSceneEnvironment, getSceneRow, getSunArcPosition, sceneDimensions, type FarmSceneLayout, type SceneEnvironment, type SceneRow, type SceneZone, type Vec3 } from "@/lib/farm-3d";
+import { buildFarmSceneLayout, cameraDirections, getCameraPreset, getCloudDriftX, getInstanceRowId, getSceneEnvironment, getSceneRow, getSunArcPosition, sceneDimensions, sceneSky, type FarmSceneLayout, type SceneEnvironment, type SceneRow, type SceneZone, type Vec3 } from "@/lib/farm-3d";
 import { formatZoneName } from "@/lib/farm";
 import { formatAngle } from "@/lib/formatters";
 import { FarmPanel } from "@/components/farm/farm-panel";
@@ -53,7 +53,7 @@ function PanelInstances({ zone, texture, scenic, onRow, onHover }: { zone: Scene
   }
   return <instancedMesh ref={mesh} castShadow receiveShadow args={[undefined, undefined, zone.panels.length]} onClick={pick} onPointerMove={event => { event.stopPropagation(); onHover(getInstanceRowId(zone, event.instanceId)); }} onPointerOut={() => onHover(null)}>
     <boxGeometry args={[sceneDimensions.panelWidth, 0.065, sceneDimensions.panelDepth]}/>
-    {scenic ? <meshPhysicalMaterial map={texture} metalness={0.15} roughness={0.16} clearcoat={1} clearcoatRoughness={0.06} envMapIntensity={1.15}/> : <meshStandardMaterial map={texture} metalness={0.36} roughness={0.48}/>}
+    {scenic ? <meshPhysicalMaterial map={texture} metalness={0.15} roughness={0.16} clearcoat={1} clearcoatRoughness={0.06} envMapIntensity={0.85}/> : <meshStandardMaterial map={texture} metalness={0.36} roughness={0.48}/>}
   </instancedMesh>;
 }
 
@@ -103,6 +103,10 @@ function makeRadialTexture(stops: [number, string][]) {
   }
   const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
   return texture;
+}
+/** Clouds stay bright white under the lowered scene exposure instead of turning grey. */
+class CloudMaterial extends MeshBasicMaterial {
+  constructor() { super(); this.toneMapped = false; }
 }
 /** Thin streaks like the diffraction spikes a camera lens puts around a bright sun. */
 function makeSunRaysTexture() {
@@ -182,7 +186,9 @@ function SceneSky({ environment, layout }: { environment: SceneEnvironment; layo
   useEffect(() => () => ground.dispose(), [ground]);
   const extent = environment.shadowExtent;
   const [sunX, sunY, sunZ] = environment.sunPosition;
-  const sun = useRef<Group>(null), sunLight = useRef<DirectionalLight>(null);
+  const sun = useRef<Group>(null), sunLight = useRef<DirectionalLight>(null), sky = useRef<Mesh | null>(null);
+  // The light keeps the sun's direction but sits close enough for its shadow camera to cover the farm.
+  const lightScale = reach * 3 / sceneSky.sunDistance;
   const cloudGroups = useRef<(Group | null)[]>([]), cloudShades = useRef<(Mesh | null)[]>([]);
   // Illustrative motion: the sun follows a slow arc and clouds drift with the supplied wind speed.
   // People who ask their system for reduced motion get the still scene.
@@ -190,9 +196,10 @@ function SceneSky({ environment, layout }: { environment: SceneEnvironment; layo
   useFrame(({ clock }) => {
     if (still) return;
     const seconds = clock.elapsedTime;
-    const [x, y, z] = getSunArcPosition(environment, seconds);
+    const [x, y, z] = getSunArcPosition(seconds);
     sun.current?.position.set(x, y, z);
-    sunLight.current?.position.set(x * 3, y * 3, z * 3);
+    sunLight.current?.position.set(x * lightScale, y * lightScale, z * lightScale);
+    (sky.current?.material as ShaderMaterial | undefined)?.uniforms.sunPosition.value.set(x, y, z);
     environment.clouds.forEach((cloud, index) => {
       const cloudX = getCloudDriftX(cloud.position[0], environment, seconds);
       cloudGroups.current[index]?.position.setX(cloudX);
@@ -200,24 +207,25 @@ function SceneSky({ environment, layout }: { environment: SceneEnvironment; layo
       cloudShades.current[index]?.position.set(cloudX - x / y * cloud.position[1], 0.16, cloud.position[2] - z / y * cloud.position[1]);
     });
   });
-  const glowSize = 30 + 22 * environment.brightness;
+  // About 14 degrees across at the sun's distance: a soft halo around the disc the sky shader draws.
+  const glowSize = 46 + 30 * environment.brightness;
   // Memoized so the reflection cube map is rendered once, not on every hover re-render.
-  const atmosphere = useMemo(() => <DreiSky distance={900} sunPosition={environment.sunPosition} turbidity={3 + 9 * environment.cover} rayleigh={0.9 + environment.cover} mieCoefficient={0.006} mieDirectionalG={0.86}/>, [environment.sunPosition, environment.cover]);
+  const skyProps = useMemo(() => ({ distance: 900, sunPosition: environment.sunPosition, turbidity: 1.6 + 7 * environment.cover, rayleigh: 1.9 + environment.cover, mieCoefficient: 0.0035, mieDirectionalG: 0.82 }), [environment.sunPosition, environment.cover]);
+  const reflectedSky = useMemo(() => <DreiSky {...skyProps}/>, [skyProps]);
   return <>
-    {atmosphere}<Environment resolution={128}>{atmosphere}</Environment>
-    <fog attach="fog" args={["#b4c8da", reach * 2.2, reach * 7]}/>
-    <ambientLight intensity={0.08}/><hemisphereLight args={["#bcd9ff", "#5f6b45", environment.skyIntensity * 0.34]}/>
-    <directionalLight ref={sunLight} castShadow color="#ffe7c2" position={[sunX * 3, sunY * 3, sunZ * 3]} intensity={environment.sunIntensity * 1.25}
+    <DreiSky ref={node => { sky.current = node; }} {...skyProps}/><Environment resolution={128}>{reflectedSky}</Environment>
+    <fog attach="fog" args={["#e6e2d6", reach * 2.4, reach * 7]}/>
+    <ambientLight intensity={0.4}/><hemisphereLight args={["#cfe2ff", "#7a8055", environment.skyIntensity * 1.5]}/>
+    <directionalLight ref={sunLight} castShadow color="#ffdcae" position={[sunX * lightScale, sunY * lightScale, sunZ * lightScale]} intensity={environment.sunIntensity * 2.2}
       shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.03} shadow-radius={3} shadow-camera-near={1} shadow-camera-far={reach * 8} shadow-camera-left={-extent} shadow-camera-right={extent} shadow-camera-top={extent} shadow-camera-bottom={-extent}/>
-    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.36, 0]}><planeGeometry args={[reach * 14, reach * 14]}/><meshStandardMaterial map={ground} roughness={1} envMapIntensity={0.35}/></mesh>
+    <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.36, 0]}><planeGeometry args={[reach * 14, reach * 14]}/><meshStandardMaterial map={ground} roughness={1} envMapIntensity={0.5}/></mesh>
     <group ref={sun} position={environment.sunPosition}>
-      <mesh><sphereGeometry args={[1.15, 32, 32]}/><meshBasicMaterial color="#fffef8" toneMapped={false} fog={false}/></mesh>
-      <sprite scale={[glowSize, glowSize, 1]}><spriteMaterial map={glow} blending={AdditiveBlending} depthWrite={false} transparent toneMapped={false} fog={false}/></sprite>
+      <sprite scale={[glowSize, glowSize, 1]}><spriteMaterial map={glow} blending={AdditiveBlending} depthWrite={false} transparent opacity={0.6} toneMapped={false} fog={false}/></sprite>
       <sprite scale={[glowSize * 0.62, glowSize * 0.62, 1]}><spriteMaterial map={rays} blending={AdditiveBlending} depthWrite={false} transparent opacity={0.35 + 0.4 * environment.brightness} toneMapped={false} fog={false}/></sprite>
     </group>
     {/* The cloud texture decodes asynchronously; this boundary lets the farm render first and the clouds appear after. */}
-    <Suspense fallback={null}><Clouds texture={cloudUrl} limit={700} material={MeshBasicMaterial}>
-      {environment.clouds.map((cloud, index) => <Cloud key={index} ref={node => { cloudGroups.current[index] = node; }} seed={index + 1} position={cloud.position} bounds={[3.4 * cloud.scale, 0.8 * cloud.scale, 1.9 * cloud.scale]} volume={4.4 * cloud.scale} segments={14} opacity={1} speed={0.14} fade={260} color="#ffffff"/>)}
+    <Suspense fallback={null}><Clouds texture={cloudUrl} limit={700} material={CloudMaterial}>
+      {environment.clouds.map((cloud, index) => <Cloud key={index} ref={node => { cloudGroups.current[index] = node; }} seed={index + 1} position={cloud.position} bounds={[3.4 * cloud.scale, 0.8 * cloud.scale, 1.9 * cloud.scale]} volume={4.4 * cloud.scale} segments={14} opacity={0.9} speed={0.14} fade={700} color="#f3f1ec"/>)}
     </Clouds></Suspense>
     {/* Cloud sprites cannot cast real shadows, so each gets a soft ground shadow offset away from the sun. */}
     {environment.clouds.map((cloud, index) => <mesh key={index} ref={node => { cloudShades.current[index] = node; }} rotation={[-Math.PI / 2, 0, 0]} position={[cloud.position[0] - sunX / sunY * cloud.position[1], 0.16, cloud.position[2] - sunZ / sunY * cloud.position[1]]}>
@@ -238,7 +246,7 @@ function CameraRig({ layout, request, scenic }: { layout: FarmSceneLayout; reque
     camera.position.set(...preset.position); camera.lookAt(...preset.target);
     controls.current?.target.set(...preset.target); controls.current?.update(); invalidate();
   }, [camera, invalidate, preset, request.sequence, activeControls, size.width, size.height]);
-  const maxDistance = getCameraPreset(layout, size.width / Math.max(1, size.height)).distance * 1.8;
+  const maxDistance = Math.max(getCameraPreset(layout, size.width / Math.max(1, size.height)).distance, preset.distance) * 1.8;
   return <OrbitControls ref={controls} makeDefault enableDamping={false} minDistance={12} maxDistance={maxDistance} minPolarAngle={0.12} maxPolarAngle={Math.PI / 2.15} onChange={() => invalidate()} />;
 }
 function ContextGuard({ onFailure }: { onFailure: () => void }) {
@@ -296,7 +304,7 @@ export default function Farm3DScene(props: Farm3DProps) {
       <button type="button" aria-pressed={labels} onClick={() => setLabels(value => !value)}><Eye size={14}/>{labels ? "Hide labels" : "Show labels"}</button>
     </div>
     {failed ? <SceneUnavailable onExit={props.onExit}/> : <div className="f3-canvas" data-hovered={!!hoverRow} role="group" aria-label="Schematic 3D farm. Drag to orbit, right-drag to pan, scroll or pinch to zoom. Use the row picker or table for keyboard inspection.">
-      <Canvas shadows={environment !== null} frameloop={environment !== null ? "always" : "demand"} dpr={[1, 1.5]} camera={{ fov: 42, near: 0.1, far: 2000 }} gl={{ antialias: true, powerPreference: "low-power" }} fallback={<SceneUnavailable onExit={props.onExit}/>}>
+      <Canvas onCreated={state => { if (environment !== null) state.gl.toneMappingExposure = 0.42; }} shadows={environment !== null} frameloop={environment !== null ? "always" : "demand"} dpr={[1, 1.5]} camera={{ fov: 42, near: 0.1, far: 2000 }} gl={{ antialias: true, powerPreference: "low-power" }} fallback={<SceneUnavailable onExit={props.onExit}/>}>
         <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={request} scenic={environment !== null}/><FarmGeometry layout={layout} props={props} labels={labels} onHover={setHovered} portal={labelPortal} environment={environment}/>
       </Canvas>
       <div className="f3-label-layer" ref={labelPortal}/>
@@ -304,6 +312,6 @@ export default function Farm3DScene(props: Farm3DProps) {
       <div className="f3-hover" aria-live="off">{hoverRow ? <><strong>{hoverRow.row_id}</strong> {formatAngle(hoverRow.angle_deg)} · {hoverRow.current_state} · Recorded {hoverRow.action}</> : "Drag to orbit · Scroll / pinch to zoom · Right-drag to pan"}</div>
     </div>}
     <div className="f3-legend"><span className="f3-target-key">⊕ Control target</span><span>◇ Selected row</span>{Object.entries(rowStatePresentation).map(([state, presentation]) => <span key={state}><presentation.icon size={12} style={{ color: presentation.color }}/>{state}</span>)}</div>
-    <p className="f3-note">Schematic 3D layout. Zone membership, row state, and tilt come from the loaded farm contract; geographic coordinates are not available. Panel tilt uses one illustrative axis; geographic orientation is not provided. {environment ? `Cloud count and haze follow the supplied cloud cover (${environment.cloudCount} clouds drawn) and light strength follows the supplied GHI; cloud drift speed follows the supplied wind speed. The sun arc and the drift direction are illustrative animation: the payload has no solar position or wind direction and covers a single hour.` : "Scene lighting is illustrative, not solar-position data."}</p>
+    <p className="f3-note">Schematic 3D layout. Zone membership, row state, and tilt come from the loaded farm contract; geographic coordinates are not available. Panel tilt uses one illustrative axis; geographic orientation is not provided. {environment ? `Cloud count and haze follow the supplied cloud cover (${environment.cloudCount} clouds drawn) and light strength follows the supplied GHI; cloud drift speed follows the supplied wind speed. The low sun, its slow sweep and the drift direction are illustrative animation: the payload has no solar position or wind direction and covers a single hour.` : "Scene lighting is illustrative, not solar-position data."}</p>
   </FarmPanel>;
 }

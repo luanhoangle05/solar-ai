@@ -115,10 +115,11 @@ import { getCloudDriftX, getSunArcPosition, sceneSky } from "./farm-3d";
 describe("illustrative sun and cloud motion", () => {
   const bounds = { width: 60, depth: 60, center: [0, 0, 0] as [number, number, number] };
   const environment = getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850, windSpeedKmh: 14 }, bounds);
-  it("starts the sun at its resting position", () => expect(getSunArcPosition(environment, 0)).toEqual(environment.sunPosition));
-  it("returns the sun to the start after one period", () => getSunArcPosition(environment, sceneSky.sunPeriodSeconds).forEach((value, axis) => expect(value).toBeCloseTo(environment.sunPosition[axis])));
-  it("carries the sun to the opposite side at half a period", () => expect(getSunArcPosition(environment, sceneSky.sunPeriodSeconds / 2)[0]).toBeCloseTo(-environment.sunPosition[0]));
-  it("keeps the sun above the horizon for the whole arc", () => expect(Math.min(...Array.from({ length: 120 }, (_, second) => getSunArcPosition(environment, second)[1]))).toBeGreaterThanOrEqual(environment.sunPosition[1]));
+  it("starts the sun at its resting position", () => expect(getSunArcPosition(0)).toEqual(environment.sunPosition));
+  it("returns the sun to the start after one period", () => getSunArcPosition(sceneSky.sunPeriodSeconds).forEach((value, axis) => expect(value).toBeCloseTo(environment.sunPosition[axis])));
+  it("carries the sun across the view by half a period", () => expect(Math.abs(getSunArcPosition(sceneSky.sunPeriodSeconds / 2)[0] - environment.sunPosition[0])).toBeGreaterThan(100));
+  it("keeps the sun at a fixed distance, ahead of the scenic camera", () => { for (const second of [0, 17, 30, 60, 95]) { const [x, y, z] = getSunArcPosition(second); expect(Math.hypot(x, y, z)).toBeCloseTo(sceneSky.sunDistance); expect(z).toBeLessThan(0); } });
+  it("keeps the sun above the horizon for the whole arc", () => expect(Math.min(...Array.from({ length: 120 }, (_, second) => getSunArcPosition(second)[1]))).toBeGreaterThanOrEqual(environment.sunPosition[1] - 1e-9));
   it("drifts clouds faster in stronger wind", () => expect(getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850, windSpeedKmh: 40 }, bounds).cloudDrift).toBeGreaterThan(environment.cloudDrift));
   it("still drifts gently when no wind speed is supplied", () => expect(getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850 }, bounds).cloudDrift).toBe(0.25));
   it("moves a cloud along x over time", () => expect(getCloudDriftX(0, environment, 10)).toBeCloseTo(10 * environment.cloudDrift));
