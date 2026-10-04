@@ -1,0 +1,291 @@
+{
+  "site": "Calgary, Alberta",
+  "latitude": 51.0447,
+  "longitude": -114.0719,
+  "weather_source": "real archived operational forecast-model data; not station measurements",
+  "historical_model": "gem_seamless",
+  "energy_label_source": "physics-derived / pvlib simulation",
+  "reference_system": {
+    "panels": 20,
+    "panel_dc_w": 500,
+    "surface_azimuth_deg": 180,
+    "albedo": 0.2,
+    "gamma_pdc": -0.0035,
+    "dc_ac_ratio": 1.1,
+    "inverter_efficiency": 0.96,
+    "system_loss_fraction": 0.14,
+    "temperature_parameters": "open_rack_glass_glass",
+    "row_dc_w": 10000,
+    "inverter_ac_w": 9090.90909090909,
+    "inverter_pdc0_w": 9469.69696969697,
+    "transposition": "haydavies",
+    "dc_model": "pvwatts_dc",
+    "ac_model": "pvwatts",
+    "pvlib_version": "0.13.1",
+    "label_source": "physics_derived_pvwatts_ac",
+    "temperature_coefficients": {
+      "a": -3.47,
+      "b": -0.0594,
+      "deltaT": 3
+    }
+  },
+  "label_source": "physics_derived_pvwatts_ac",
+  "target": "AC kWh per 20-panel row per one-hour interval",
+  "candidate_angles": [
+    30,
+    35,
+    40,
+    45,
+    50,
+    55,
+    60
+  ],
+  "sample_dates": [
+    "2023-01-15",
+    "2023-04-15",
+    "2023-07-15",
+    "2023-10-15",
+    "2024-01-15",
+    "2025-01-15"
+  ],
+  "split_boundaries": {
+    "train": "2023 UTC",
+    "validation": "2024 UTC",
+    "test": "2025 UTC"
+  },
+  "generation_timestamp": "2026-10-04T00:30:08.187188+00:00",
+  "row_count": 5040,
+  "hourly_observations": 720,
+  "missing_data_exclusions": [],
+  "sources": [
+    {
+      "endpoint": "https://historical-forecast-api.open-meteo.com/v1/forecast",
+      "fetched_at": "2026-10-04T00:21:51.174374+00:00",
+      "sha256": "538d5749f7a8479300c1d6f4196b206214100ce36f988a53ccf4b7d320643d9a",
+      "request_parameters": {
+        "latitude": 51.0447,
+        "longitude": -114.0719,
+        "hourly": "temperature_2m,cloud_cover,precipitation,wind_speed_10m,wind_gusts_10m,shortwave_radiation,direct_normal_irradiance,diffuse_radiation",
+        "timezone": "UTC",
+        "timeformat": "unixtime",
+        "temperature_unit": "celsius",
+        "wind_speed_unit": "kmh",
+        "precipitation_unit": "mm",
+        "models": "gem_seamless",
+        "start_hour": "2023-01-15T00:00",
+        "end_hour": "2023-01-22T00:00"
+      },
+      "sample_date": "2023-01-15",
+      "null_counts": {
+        "temperature_2m": 0,
+        "cloud_cover": 0,
+        "precipitation": 0,
+        "wind_speed_10m": 0,
+        "wind_gusts_10m": 0,
+        "shortwave_radiation": 0,
+        "direct_normal_irradiance": 0,
+        "diffuse_radiation": 0
+      },
+      "returned_coordinates": {
+        "latitude": 51.034798,
+        "longitude": -114.07733
+      },
+      "hours_accepted": 168
+    },
+    {
+      "endpoint": "https://historical-forecast-api.open-meteo.com/v1/forecast",
+      "fetched_at": "2026-10-04T00:21:52.468606+00:00",
+      "sha256": "2a667c26f85e5562412c8eb449eca56d9c954946116d51702136a3d8a044fcf6",
+      "request_parameters": {
+        "latitude": 51.0447,
+        "longitude": -114.0719,
+        "hourly": "temperature_2m,cloud_cover,precipitation,wind_speed_10m,wind_gusts_10m,shortwave_radiation,direct_normal_irradiance,diffuse_radiation",
+        "timezone": "UTC",
+        "timeformat": "unixtime",
+        "temperature_unit": "celsius",
+        "wind_speed_unit": "kmh",
+        "precipitation_unit": "mm",
+        "models": "gem_seamless",
+        "start_hour": "2023-04-15T00:00",
+        "end_hour": "2023-04-22T00:00"
+      },
+      "sample_date": "2023-04-15",
+      "null_counts": {
+        "temperature_2m": 0,
+        "cloud_cover": 0,
+        "precipitation": 0,
+        "wind_speed_10m": 0,
+        "wind_gusts_10m": 0,
+        "shortwave_radiation": 0,
+        "direct_normal_irradiance": 0,
+        "diffuse_radiation": 0
+      },
+      "returned_coordinates": {
+        "latitude": 51.034798,
+        "longitude": -114.07733
+      },
+      "hours_accepted": 168
+    },
+    {
+      "endpoint": "https://historical-forecast-api.open-meteo.com/v1/forecast",
+      "fetched_at": "2026-10-04T00:21:53.637453+00:00",
+      "sha256": "f2616a32812e01297ac13afcc6119c75624c2916edfff75a31a6a8980598ac09",
+      "request_parameters": {
+        "latitude": 51.0447,
+        "longitude": -114.0719,
+        "hourly": "temperature_2m,cloud_cover,precipitation,wind_speed_10m,wind_gusts_10m,shortwave_radiation,direct_normal_irradiance,diffuse_radiation",
+        "timezone": "UTC",
+        "timeformat": "unixtime",
+        "temperature_unit": "celsius",
+        "wind_speed_unit": "kmh",
+        "precipitation_unit": "mm",
+        "models": "gem_seamless",
+        "start_hour": "2023-07-15T00:00",
+        "end_hour": "2023-07-22T00:00"
+      },
+      "sample_date": "2023-07-15",
+      "null_counts": {
+        "temperature_2m": 0,
+        "cloud_cover": 0,
+        "precipitation": 0,
+        "wind_speed_10m": 0,
+        "wind_gusts_10m": 0,
+        "shortwave_radiation": 0,
+        "direct_normal_irradiance": 0,
+        "diffuse_radiation": 0
+      },
+      "returned_coordinates": {
+        "latitude": 51.034798,
+        "longitude": -114.07733
+      },
+      "hours_accepted": 168
+    },
+    {
+      "endpoint": "https://historical-forecast-api.open-meteo.com/v1/forecast",
+      "fetched_at": "2026-10-04T00:21:54.574470+00:00",
+      "sha256": "23e0268398b8704b800d70a132f300d1f6648adbaa63dcf17f3e55f3261ee2b2",
+      "request_parameters": {
+        "latitude": 51.0447,
+        "longitude": -114.0719,
+        "hourly": "temperature_2m,cloud_cover,precipitation,wind_speed_10m,wind_gusts_10m,shortwave_radiation,direct_normal_irradiance,diffuse_radiation",
+        "timezone": "UTC",
+        "timeformat": "unixtime",
+        "temperature_unit": "celsius",
+        "wind_speed_unit": "kmh",
+        "precipitation_unit": "mm",
+        "models": "gem_seamless",
+        "start_hour": "2023-10-15T00:00",
+        "end_hour": "2023-10-22T00:00"
+      },
+      "sample_date": "2023-10-15",
+      "null_counts": {
+        "temperature_2m": 0,
+        "cloud_cover": 0,
+        "precipitation": 0,
+        "wind_speed_10m": 0,
+        "wind_gusts_10m": 0,
+        "shortwave_radiation": 0,
+        "direct_normal_irradiance": 0,
+        "diffuse_radiation": 0
+      },
+      "returned_coordinates": {
+        "latitude": 51.034798,
+        "longitude": -114.07733
+      },
+      "hours_accepted": 168
+    },
+    {
+      "endpoint": "https://historical-forecast-api.open-meteo.com/v1/forecast",
+      "fetched_at": "2026-10-04T00:21:55.433861+00:00",
+      "sha256": "6f3ca986cf9d997d2b32fe0bc24d53f30ca2dcb9856b39bb338ce7c4dddc4e19",
+      "request_parameters": {
+        "latitude": 51.0447,
+        "longitude": -114.0719,
+        "hourly": "temperature_2m,cloud_cover,precipitation,wind_speed_10m,wind_gusts_10m,shortwave_radiation,direct_normal_irradiance,diffuse_radiation",
+        "timezone": "UTC",
+        "timeformat": "unixtime",
+        "temperature_unit": "celsius",
+        "wind_speed_unit": "kmh",
+        "precipitation_unit": "mm",
+        "models": "gem_seamless",
+        "start_hour": "2024-01-15T00:00",
+        "end_hour": "2024-01-16T00:00"
+      },
+      "sample_date": "2024-01-15",
+      "null_counts": {
+        "temperature_2m": 0,
+        "cloud_cover": 0,
+        "precipitation": 0,
+        "wind_speed_10m": 0,
+        "wind_gusts_10m": 0,
+        "shortwave_radiation": 0,
+        "direct_normal_irradiance": 0,
+        "diffuse_radiation": 0
+      },
+      "returned_coordinates": {
+        "latitude": 51.034798,
+        "longitude": -114.07733
+      },
+      "hours_accepted": 24
+    },
+    {
+      "endpoint": "https://historical-forecast-api.open-meteo.com/v1/forecast",
+      "fetched_at": "2026-10-04T00:21:56.296528+00:00",
+      "sha256": "5f15aed60b8761cb7dcf5de99d2dcb42d840f1a500171f49ef6d99ea67dd70e3",
+      "request_parameters": {
+        "latitude": 51.0447,
+        "longitude": -114.0719,
+        "hourly": "temperature_2m,cloud_cover,precipitation,wind_speed_10m,wind_gusts_10m,shortwave_radiation,direct_normal_irradiance,diffuse_radiation",
+        "timezone": "UTC",
+        "timeformat": "unixtime",
+        "temperature_unit": "celsius",
+        "wind_speed_unit": "kmh",
+        "precipitation_unit": "mm",
+        "models": "gem_seamless",
+        "start_hour": "2025-01-15T00:00",
+        "end_hour": "2025-01-16T00:00"
+      },
+      "sample_date": "2025-01-15",
+      "null_counts": {
+        "temperature_2m": 0,
+        "cloud_cover": 0,
+        "precipitation": 0,
+        "wind_speed_10m": 0,
+        "wind_gusts_10m": 0,
+        "shortwave_radiation": 0,
+        "direct_normal_irradiance": 0,
+        "diffuse_radiation": 0
+      },
+      "returned_coordinates": {
+        "latitude": 51.034798,
+        "longitude": -114.07733
+      },
+      "hours_accepted": 24
+    }
+  ],
+  "wind_order_diagnostic_hours": 197,
+  "coverage_status": "Seasonal probes only; exhaustive 2023\u20132025 completeness NOT verified. Full download not authorized.",
+  "limitations": [
+    "Reference simulated PV row, not a real farm",
+    "No dynamic snow, shading, soiling, bifacial or degradation",
+    "Fixed 14% generic loss applied once to DC",
+    "No separate spectral or incidence-angle optical model; POA used as effective irradiance",
+    "Hourly mean radiation with midpoint sun position; sunrise/sunset approximation; midpoint below horizon forces zero",
+    "Model accuracy measures agreement with physics simulation, not measured production",
+    "Archived stitched forecasts do not preserve a fixed forecast lead time",
+    "Unknown issue time allowed for historical offline quality checks; operational freshness policy unchanged"
+  ],
+  "max_ac_w": 8610.670104866133,
+  "clipping_count": 0,
+  "actual_kwh_statistics": {
+    "min": 0.0,
+    "mean": 1.6006420261846268,
+    "max": 8.610670104866132
+  },
+  "nighttime_max_kwh": 0.0,
+  "csv_sha256": {
+    "test_sample.csv": "c99b97a6c99e5b38c19e6bbcd8b6a4a576b7011ab4c8b453ccb3ac6b11db7238",
+    "train_sample.csv": "042345c12afaa6f09f93d23c8ac0c8924d7984d2c0d06aa9de35e0e0c8e6b659",
+    "validation_sample.csv": "b46066db9424315a3b0f056d58dc5353bac71f73214121db2ffa3100b4baadb2"
+  }
+}
