@@ -12,6 +12,28 @@ import {
 import { frontendDataSchema } from "./frontend-data";
 
 describe("SolarAI FrontendData contract", () => {
+  it("accepts unordered wind/gust without changing values or diagnostic status", async () => {
+    const data = await loadFrontendData();
+    data.current_weather!.wind_speed_kmh = 15;
+    data.current_weather!.wind_gust_kmh = 8;
+    data.data_agent.issues.push("Wind fields use different temporal semantics.");
+    const parsed = frontendDataSchema.parse(data);
+    expect(parsed.current_weather!.wind_speed_kmh).toBe(15);
+    expect(parsed.current_weather!.wind_gust_kmh).toBe(8);
+    expect(parsed.data_agent.status).toBe("VALID");
+    expect(parsed.data_agent.issues).toEqual(data.data_agent.issues);
+  });
+
+  it("still rejects individually invalid or missing wind/gust values", async () => {
+    for (const field of ["wind_speed_kmh", "wind_gust_kmh"] as const) {
+      for (const value of [-1, NaN, Infinity, null, undefined]) {
+        const data = await loadFrontendData();
+        const weather = data.current_weather as unknown as Record<string, unknown>;
+        weather[field] = value;
+        expect(frontendDataSchema.safeParse(data).success).toBe(false);
+      }
+    }
+  });
   it("accepts the repository's shared frontend fixture", async () => {
     const data = await loadFrontendData();
 

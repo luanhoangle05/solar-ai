@@ -63,7 +63,7 @@ class WeatherValidationTests(unittest.TestCase):
                 self.assertEqual(self.report(dict(weather_fixture(), ghi_wm2=value))["status"], "INVALID")
 
     def test_ranges_and_invalid_precedence(self):
-        for field, value in (("cloud_cover_pct", 101), ("cloud_cover_pct", -1), ("wind_gust_kmh", 1), ("precipitation_mm", -1)):
+        for field, value in (("cloud_cover_pct", 101), ("cloud_cover_pct", -1), ("wind_gust_kmh", -1), ("precipitation_mm", -1)):
             weather = dict(weather_fixture(), **{field: value})
             weather["forecast_issued_at"] = "2026-06-21T17:00:00Z"
             self.assertEqual(self.report(weather)["status"], "INVALID")
@@ -71,6 +71,22 @@ class WeatherValidationTests(unittest.TestCase):
     def test_night_and_cold_weather_not_imputed(self):
         weather = dict(weather_fixture(), temperature_c=-20, ghi_wm2=0, dni_wm2=0, dhi_wm2=0)
         self.assertEqual(self.report(weather)["status"], "VALID")
+
+    def test_gust_order_is_diagnostic_without_masking_freshness(self):
+        weather = dict(weather_fixture(), wind_speed_kmh=15, wind_gust_kmh=8)
+        original = copy.deepcopy(weather)
+        for issued, status in ((weather['forecast_issued_at'], 'VALID'),
+                               ('2026-06-21T17:00:00Z', 'STALE'), (None, 'INVALID')):
+            report = self.report(dict(weather, forecast_issued_at=issued))
+            self.assertEqual(report['status'], status)
+            self.assertTrue(any('different temporal semantics' in issue for issue in report['issues']))
+        self.assertEqual(weather, original)
+
+    def test_wind_and_gust_individual_invalid_values_still_rejected(self):
+        for field in ('wind_speed_kmh', 'wind_gust_kmh'):
+            for value in (-1, None, float('nan'), float('inf')):
+                with self.subTest(field=field, value=value):
+                    self.assertEqual(self.report(dict(weather_fixture(), **{field:value}))['status'], 'INVALID')
 
     def test_malformed_timestamps_and_source_rejected(self):
         for field, value in (("timestamp", "bad"), ("timestamp", "2026-06-21T19:00:00"), ("fetched_at", None), ("source", " ")):

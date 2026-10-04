@@ -100,16 +100,9 @@ export const currentWeatherSchema = z
     dni_wm2: nonNegativeNumber,
     dhi_wm2: nonNegativeNumber,
   })
-  .strict()
-  .superRefine((weather, ctx) => {
-    if (weather.wind_gust_kmh < weather.wind_speed_kmh) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["wind_gust_kmh"],
-        message: "Wind gust cannot be below sustained wind speed.",
-      });
-    }
-  });
+  // Instant wind and preceding-hour gust have different temporal support.
+  // Both remain finite/nonnegative; their ordering is not a hard invariant.
+  .strict();
 
 export const dataAgentReportSchema = z
   .object({

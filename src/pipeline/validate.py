@@ -75,9 +75,6 @@ def _inspect_weather(weather: RawWeather) -> tuple[list[str], dict[str, datetime
             issues.append(f"{field}: cannot be negative")
         elif field == "cloud_cover_pct" and not 0 <= value <= 100:
             issues.append("cloud_cover_pct: must be within [0, 100]")
-    wind, gust = weather.get("wind_speed_kmh"), weather.get("wind_gust_kmh")
-    if _finite_number(wind) and _finite_number(gust) and gust < wind:
-        issues.append("wind_gust_kmh: below sustained wind_speed_kmh")
     return issues, times
 
 
@@ -111,6 +108,13 @@ def validate_weather(
         issues.append(f"forecast_age_minutes: {age:g} exceeds limit {limit:g}")
         if status == "VALID":
             status = "STALE"
+    # Diagnostics are appended after status selection: ordering of an instant
+    # and a preceding-hour aggregate is not a hard weather-quality invariant.
+    if isinstance(weather, dict):
+        wind, gust = weather.get("wind_speed_kmh"), weather.get("wind_gust_kmh")
+        if (_finite_number(wind) and _finite_number(gust)
+                and wind >= 0 and gust >= 0 and gust < wind):
+            issues.append("Wind gust is below instantaneous wind speed; retained because provider fields use different temporal semantics.")
     source = weather.get("source") if isinstance(weather, dict) else None
     return {
         "status": status,
