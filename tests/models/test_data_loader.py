@@ -9,9 +9,10 @@ from unittest import mock
 
 from src.common.schema import FEATURE_COLUMNS, WEATHER_COLUMNS
 from src.models.advanced.features import feature_matrix, label_vector
+from src.models import data_loader
 from src.models.data_loader import (
     DATASET_KIND_ENV, DATASET_PATH_ENV, EXAMPLE_DATASET_PATH, EXAMPLE_DATASET_SOURCE, LABEL_SOURCE_ENV,
-    FULL_SPLIT_FILE_NAMES, PIPELINE_DATASET_PATH, PIPELINE_DATASET_SOURCE, SAMPLE_SPLIT_FILE_NAMES, DatasetError, DatasetSource,
+    FULL_DATASET_SOURCE, FULL_SPLIT_FILE_NAMES, PIPELINE_DATASET_PATH, PIPELINE_DATASET_SOURCE, SAMPLE_SPLIT_FILE_NAMES, DatasetError, DatasetSource,
     default_dataset_source,
     hourly_weather, load_dataset_split, load_weather_rows,
 )
@@ -118,12 +119,28 @@ class LoadWeatherRowsTest(unittest.TestCase):
 
 
 class DefaultDatasetSourceTest(unittest.TestCase):
-    def test_defaults_to_pipeline_dataset_labeled_physics_derived(self) -> None:
-        with mock.patch.dict(os.environ, {}, clear=True):
-            source = default_dataset_source()
+    def default_source(self, *, full_dataset_unpacked: bool) -> DatasetSource:
+        with tempfile.TemporaryDirectory() as directory:
+            full_path = Path(directory) if full_dataset_unpacked else Path(directory) / "not_unpacked"
+            full_source = DatasetSource(full_path, FULL_DATASET_SOURCE.dataset_kind, FULL_DATASET_SOURCE.label_source)
+            with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(data_loader, "FULL_DATASET_SOURCE", full_source):
+                self.assertEqual(default_dataset_source(), full_source if full_dataset_unpacked else PIPELINE_DATASET_SOURCE)
+                return default_dataset_source()
 
-        self.assertEqual(source, PIPELINE_DATASET_SOURCE)
+    def test_defaults_to_the_seasonal_sample_when_the_full_dataset_is_not_unpacked(self) -> None:
+        source = self.default_source(full_dataset_unpacked=False)
+
         self.assertEqual((source.path, source.dataset_kind, source.label_source), (PIPELINE_DATASET_PATH, "LIVE", "physics-derived"))
+
+    def test_defaults_to_the_full_dataset_when_it_is_unpacked(self) -> None:
+        source = self.default_source(full_dataset_unpacked=True)
+
+        self.assertEqual((source.dataset_kind, source.label_source), ("LIVE", "physics-derived"))
+        self.assertEqual(FULL_DATASET_SOURCE.path.name, "gem_2023_2025")
+
+    def test_environment_path_wins_over_an_unpacked_full_dataset(self) -> None:
+        with mock.patch.dict(os.environ, {DATASET_PATH_ENV: str(PIPELINE_DATASET_PATH)}, clear=True):
+            self.assertEqual(default_dataset_source(), PIPELINE_DATASET_SOURCE)
 
     def test_example_dataset_is_always_labeled_mock(self) -> None:
         with mock.patch.dict(os.environ, {DATASET_PATH_ENV: str(EXAMPLE_DATASET_PATH)}, clear=True):
