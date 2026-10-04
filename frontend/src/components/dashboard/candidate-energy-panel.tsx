@@ -9,13 +9,13 @@ export function CandidateEnergyPanel({ data, summary }: { data: FrontendData; su
   return (
     <DashboardPanel title="Candidate Energy Profile" icon={ChartNoAxesCombined} className="dashboard-candidates" action={<span className="dashboard-note">{data.metadata.prediction_horizon_minutes} min / {data.metadata.energy_scope}</span>}>
       {summary.candidates.length ? <>
-        <div className="chart-legend"><span>○ Current {formatAngle(summary.currentAngleDeg)}</span><span className="text-success">● Recommended {formatAngle(summary.recommendedAngleDeg)}</span></div>
+        <div className="chart-legend"><span>○ Current {formatAngle(summary.currentAngleDeg)}</span><span className="text-success">● Recommended {formatAngle(summary.recommendedAngleDeg)}</span><span className="text-warning">◎ Raw max {formatAngle(summary.rawMaximum?.angle_deg ?? null)}</span></div>
         <p className="dashboard-note">Y: predicted energy (kWh) · X: panel tilt (degrees)</p>
         <CandidateEnergyChart candidates={summary.candidates} currentAngle={summary.currentAngleDeg} recommendedAngle={summary.recommendedAngleDeg} />
-        <p className="candidate-insight">{getCandidateInsight(data)}</p>
-        <p className="dashboard-note mt-2">Raw predicted energy by candidate angle. Recommendation uses backend net-benefit logic.</p>
+        <p className="dashboard-note">Raw energy shown; recommendation includes movement cost.</p>
         <details className="candidate-data">
-          <summary>View candidate data ({summary.candidates.length})</summary>
+          <summary>Candidate data & interpretation ({summary.candidates.length})</summary>
+          <p className="candidate-insight">{getCandidateInsight(data)}</p>
           <table>
             <caption className="sr-only">Candidate tilt angles and raw predicted energy</caption>
             <thead><tr><th scope="col">Angle</th><th scope="col">Energy</th><th scope="col">Reference</th></tr></thead>
@@ -32,4 +32,3 @@ export function CandidateEnergyPanel({ data, summary }: { data: FrontendData; su
     </DashboardPanel>
   );
 }
-
