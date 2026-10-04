@@ -23,7 +23,8 @@ from src.models.data_loader import (
     EXAMPLE_DATASET_PATH, EXAMPLE_DATASET_SOURCE, ROOT, DatasetSource, default_dataset_source, hourly_weather, load_dataset_split,
 )
 from src.models.evaluation import (
-    EvaluatedModelingTools, build_model_metrics, evaluate_decision_quality, evaluate_predictor, selection_reason,
+    EvaluatedModelingTools, build_model_metrics, evaluate_decision_quality, evaluate_predictor, evaluate_predictor_detailed,
+    selection_reason,
 )
 from src.service.recommendation_service import build_metadata, build_modeling_tools, replay_test_window
 
@@ -38,6 +39,11 @@ DATASET_LABEL_SOURCE = "dataset energy labels for the same hour and angle"
 DECISION_QUALITY_NOTE = (
     "Each model's best candidate angle is compared with the true best angle according to the stated energy source, "
     "on test-window hours where the true energy depends on the angle. Regret is true kWh lost per hour."
+)
+DETAILED_METRICS_NOTE = (
+    "Errors are predicted minus actual, in kWh per row per hour. bias > 0 means over-prediction. WAPE is total absolute error "
+    "over total actual energy; nRMSE is RMSE over mean actual energy; total_energy_error is the summed prediction against the "
+    "summed actual. Daylight hours exclude night rows, whose zero energy is trivially predicted. Model selection uses validation RMSE only."
 )
 REPLAY_NOTES = [
     "A 'model-predicted' replay grades the selected model's choices with that model's own predictions, so its gain is optimistic.",
@@ -72,6 +78,8 @@ def build_report(source: DatasetSource) -> dict:
         "selected_model": selected,
         "selection_reason": selection_reason(validation, selected),
         "test_metrics": _test_metrics(tools, validation, split.test, metadata),
+        "detailed_metrics": _detailed_metrics(tools, validation, split, metadata),
+        "detailed_metrics_note": DETAILED_METRICS_NOTE,
         "lstm_without_history": _lstm_without_history(tools, validation, split, metadata),
         "decision_quality_source": oracle_source,
         "decision_quality": None if oracle is None else _decision_quality(tools, validation, split.test, oracle, metadata),
@@ -136,6 +144,20 @@ def _test_metrics(tools: EvaluatedModelingTools, validation: list[ModelMetrics],
     return scored
 
 
+def _detailed_metrics(tools: EvaluatedModelingTools, validation: list[ModelMetrics], split, metadata: Metadata) -> dict:
+    """Per available model and window: the wider error profile over all hours and daylight hours."""
+    return {
+        entry["model"]: {
+            window: {
+                scope: None if metrics is None else dataclasses.asdict(metrics)
+                for scope, metrics in evaluate_predictor_detailed(tools.get_predictor(entry["model"]), rows, metadata=metadata).items()
+            }
+            for window, rows in (("validation", split.validation), ("test", split.test))
+        }
+        for entry in validation if entry["status"] != "UNAVAILABLE"
+    }
+
+
 def _lstm_without_history(tools: EvaluatedModelingTools, validation: list[ModelMetrics], split, metadata: Metadata) -> dict | None:
     """LSTM accuracy when no preceding hours are stored, as for a live forecast with an empty history."""
     entry = next(item for item in validation if item["model"] == "lstm")
@@ -155,6 +177,17 @@ def _log_summary(report: dict) -> None:
         for entry in report[name]:
             if entry["status"] != "UNAVAILABLE":
                 LOGGER.info("[%s] %s: RMSE %.4f, MAE %.4f, R2 %.4f", name, entry["model"], entry["rmse"], entry["mae"], entry["r2"])
+    for model, windows in report["detailed_metrics"].items():
+        for window, scopes in windows.items():
+            daylight = scopes["daylight_hours"]
+            if daylight is not None:
+                LOGGER.info(
+                    "[daylight, %s] %s: n %d, MAE %.4f, RMSE %.4f, R2 %.4f, bias %+.4f, median |e| %.4f, p95 |e| %.4f, max |e| %.4f, "
+                    "WAPE %.2f%%, nRMSE %.2f%%, total energy %+.2f%%",
+                    window, model, daylight["samples"], daylight["mae"], daylight["rmse"], daylight["r2"], daylight["bias_kwh"],
+                    daylight["median_abs_error_kwh"], daylight["p95_abs_error_kwh"], daylight["max_abs_error_kwh"],
+                    daylight["wape_pct"], daylight["nrmse_pct"], daylight["total_energy_error_pct"],
+                )
     for name, metrics in (report["lstm_without_history"] or {}).items():
         LOGGER.info("[lstm with no stored history, %s] RMSE %.4f, MAE %.4f, R2 %.4f", name, metrics["rmse"], metrics["mae"], metrics["r2"])
     LOGGER.info("%s", report["selection_reason"])

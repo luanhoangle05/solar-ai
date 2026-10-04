@@ -94,6 +94,90 @@ def _predict_at_recorded_angle(predictor: EnergyPredictor, row: WeatherRow, meta
     return predicted_kwh
 
 
+@dataclass(frozen=True)
+class DetailedMetrics:
+    """A wider error profile for the evaluation report; errors are predicted minus actual, in kWh.
+
+    The frontend contract carries only MAE, RMSE and R2, and model selection uses
+    validation RMSE alone. These extra figures explain a model's errors; they do
+    not change which model is selected. Percentages are None when the actual
+    energy sums to zero.
+    """
+
+    samples: int
+    mae: float
+    rmse: float
+    r2: float
+    bias_kwh: float
+    median_abs_error_kwh: float
+    p95_abs_error_kwh: float
+    max_abs_error_kwh: float
+    wape_pct: float | None
+    nrmse_pct: float | None
+    total_energy_error_pct: float | None
+
+
+def compute_detailed_metrics(actual: Sequence[float], predicted: Sequence[float]) -> DetailedMetrics:
+    """MAE/RMSE/R2 plus bias, error percentiles and energy-weighted percentage errors.
+
+    - bias: mean error; positive means the model over-predicts.
+    - WAPE: total absolute error as a share of total actual energy. Unlike MAPE it
+      stays defined when individual hours produce zero energy.
+    - nRMSE: RMSE as a share of the mean actual energy.
+    - total energy error: how far the summed prediction is from the summed actual.
+    """
+    core = compute_metrics(actual, predicted)
+    errors = [estimate - value for estimate, value in zip(predicted, actual)]
+    absolute = sorted(abs(error) for error in errors)
+    total_actual = sum(actual)
+
+    def share(value: float) -> float | None:
+        return None if total_actual == 0 else 100 * value / total_actual
+
+    return DetailedMetrics(
+        samples=len(actual),
+        mae=core.mae,
+        rmse=core.rmse,
+        r2=core.r2,
+        bias_kwh=sum(errors) / len(errors),
+        median_abs_error_kwh=_percentile(absolute, 50),
+        p95_abs_error_kwh=_percentile(absolute, 95),
+        max_abs_error_kwh=absolute[-1],
+        wape_pct=share(sum(absolute)),
+        nrmse_pct=share(core.rmse * len(actual)),
+        total_energy_error_pct=share(sum(errors)),
+    )
+
+
+def _percentile(ordered: Sequence[float], percent: float) -> float:
+    """Nearest-rank percentile of an ascending sequence."""
+    rank = max(1, math.ceil(percent / 100 * len(ordered)))
+    return ordered[rank - 1]
+
+
+def evaluate_predictor_detailed(predictor: EnergyPredictor, rows: Sequence[WeatherRow], *, metadata: Metadata) -> dict[str, DetailedMetrics | None]:
+    """The detailed profile over all hours and over daylight hours only.
+
+    Night hours have zero energy and are trivially easy, so all-hours figures
+    flatter a model; the daylight profile is the one that reflects real skill.
+    A subset is None when it is empty or its targets are constant.
+    """
+    actual = [row[LABEL_COLUMN] for row in rows]
+    predicted = [_predict_at_recorded_angle(predictor, row, metadata) for row in rows]
+    daylight = [index for index, row in enumerate(rows) if row["sun_elevation_deg"] > 0]
+    return {
+        "all_hours": _detailed_or_none(actual, predicted),
+        "daylight_hours": _detailed_or_none([actual[index] for index in daylight], [predicted[index] for index in daylight]),
+    }
+
+
+def _detailed_or_none(actual: Sequence[float], predicted: Sequence[float]) -> DetailedMetrics | None:
+    try:
+        return compute_detailed_metrics(actual, predicted)
+    except ValueError:
+        return None
+
+
 def build_model_metrics(model: ModelName, implementation: str, metrics: RegressionMetrics, *, dataset_kind: str) -> ModelMetrics:
     """Computed metrics; on mock/example data they are labeled MOCK, not VALIDATED."""
     status = "MOCK" if dataset_kind == "MOCK" else "VALIDATED"

@@ -10,8 +10,8 @@ from src.common.schema import MODEL_NAMES, ModelMetrics
 from src.common.tool_contracts import ToolError
 from src.models.data_loader import load_weather_rows
 from src.models.evaluation import (
-    StepOutcome, build_model_metrics, chronological_split, compute_metrics, evaluate_decision_quality, evaluate_predictor,
-    evaluate_system,
+    StepOutcome, build_model_metrics, chronological_split, compute_detailed_metrics, compute_metrics, evaluate_decision_quality,
+    evaluate_predictor, evaluate_predictor_detailed, evaluate_system,
     select_best_model, selection_reason, unavailable_model_metrics,
 )
 
@@ -63,6 +63,70 @@ class ComputeMetricsTest(unittest.TestCase):
     def test_rejects_non_finite_predictions(self) -> None:
         with self.assertRaisesRegex(ValueError, "finite"):
             compute_metrics(actual=[1.0, 2.0], predicted=[1.0, float("nan")])
+
+
+class DetailedMetricsTest(unittest.TestCase):
+    ACTUAL = [0.0, 2.0, 4.0, 6.0, 8.0]
+    PREDICTED = [0.5, 2.0, 3.0, 7.0, 10.0]  # errors: +0.5, 0, -1, +1, +2
+
+    def setUp(self) -> None:
+        self.metrics = compute_detailed_metrics(self.ACTUAL, self.PREDICTED)
+
+    def test_core_metrics_match_the_contract_metrics(self) -> None:
+        core = compute_metrics(self.ACTUAL, self.PREDICTED)
+
+        self.assertEqual((self.metrics.mae, self.metrics.rmse, self.metrics.r2), (core.mae, core.rmse, core.r2))
+        self.assertEqual(self.metrics.samples, 5)
+
+    def test_bias_is_the_mean_signed_error(self) -> None:
+        self.assertAlmostEqual(self.metrics.bias_kwh, 2.5 / 5)
+
+    def test_error_percentiles(self) -> None:
+        # Absolute errors sorted: 0, 0.5, 1, 1, 2.
+        self.assertEqual(self.metrics.median_abs_error_kwh, 1.0)
+        self.assertEqual(self.metrics.p95_abs_error_kwh, 2.0)
+        self.assertEqual(self.metrics.max_abs_error_kwh, 2.0)
+
+    def test_energy_weighted_percentages(self) -> None:
+        self.assertAlmostEqual(self.metrics.wape_pct, 100 * 4.5 / 20)
+        self.assertAlmostEqual(self.metrics.nrmse_pct, 100 * self.metrics.rmse / 4.0)
+        self.assertAlmostEqual(self.metrics.total_energy_error_pct, 100 * 2.5 / 20)
+
+    def test_under_prediction_gives_negative_bias_and_total_error(self) -> None:
+        metrics = compute_detailed_metrics([2.0, 4.0], [1.0, 3.0])
+
+        self.assertEqual(metrics.bias_kwh, -1.0)
+        self.assertAlmostEqual(metrics.total_energy_error_pct, -100 * 2 / 6)
+
+    def test_percentages_are_none_when_actual_energy_sums_to_zero(self) -> None:
+        metrics = compute_detailed_metrics([-1.0, 1.0], [0.0, 0.0])
+
+        self.assertEqual((metrics.wape_pct, metrics.nrmse_pct, metrics.total_energy_error_pct), (None, None, None))
+
+    def test_daylight_profile_excludes_night_rows(self) -> None:
+        rows = load_weather_rows(MOCK / "sample_weather.csv")
+        night = {**rows[0], "timestamp": "2026-06-21T05:00:00Z", "sun_elevation_deg": -10.0, "actual_kwh": 0.0}
+        metadata = json.loads((MOCK / "sample_model_output.json").read_text(encoding="utf-8"))["metadata"]
+
+        class ConstantPredictor:
+            def predict_kwh(self, weather, candidate_angles_deg, *, metadata):
+                return [{"angle_deg": angle, "predicted_kwh": 4.0} for angle in candidate_angles_deg]
+
+        profile = evaluate_predictor_detailed(ConstantPredictor(), [night, *rows], metadata=metadata)
+
+        self.assertEqual((profile["all_hours"].samples, profile["daylight_hours"].samples), (len(rows) + 1, len(rows)))
+        self.assertEqual(profile["daylight_hours"].mae, evaluate_predictor(ConstantPredictor(), rows, metadata=metadata).mae)
+
+    def test_profile_is_none_for_a_subset_that_cannot_be_scored(self) -> None:
+        rows = load_weather_rows(MOCK / "sample_weather.csv")
+        all_night = [{**row, "sun_elevation_deg": -5.0} for row in rows]
+        metadata = json.loads((MOCK / "sample_model_output.json").read_text(encoding="utf-8"))["metadata"]
+
+        class ConstantPredictor:
+            def predict_kwh(self, weather, candidate_angles_deg, *, metadata):
+                return [{"angle_deg": angle, "predicted_kwh": 4.0} for angle in candidate_angles_deg]
+
+        self.assertIsNone(evaluate_predictor_detailed(ConstantPredictor(), all_night, metadata=metadata)["daylight_hours"])
 
 
 class ChronologicalSplitTest(unittest.TestCase):

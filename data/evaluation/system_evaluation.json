@@ -110,6 +110,125 @@
       "r2": 0.9997334774183229
     }
   ],
+  "detailed_metrics": {
+    "boosting": {
+      "validation": {
+        "all_hours": {
+          "samples": 168,
+          "mae": 0.10423943662127742,
+          "rmse": 0.22747896423874012,
+          "r2": 0.991175007634491,
+          "bias_kwh": -0.10226557215400656,
+          "median_abs_error_kwh": 0.000215991007280536,
+          "p95_abs_error_kwh": 0.5901351749137893,
+          "max_abs_error_kwh": 1.05235030403243,
+          "wape_pct": 7.054318064885278,
+          "nrmse_pct": 15.394451647325786,
+          "total_energy_error_pct": -6.920738411920595
+        },
+        "daylight_hours": {
+          "samples": 56,
+          "mae": 0.3125314597371104,
+          "rmse": 0.3940050684305371,
+          "r2": 0.9654248440986797,
+          "bias_kwh": -0.30698356658874154,
+          "median_abs_error_kwh": 0.2192346474766258,
+          "p95_abs_error_kwh": 0.810010974959356,
+          "max_abs_error_kwh": 1.05235030403243,
+          "wape_pct": 7.050103088714122,
+          "nrmse_pct": 8.887989555508133,
+          "total_energy_error_pct": -6.924953388091751
+        }
+      },
+      "test": {
+        "all_hours": {
+          "samples": 168,
+          "mae": 0.04780357796073675,
+          "rmse": 0.11081255803614926,
+          "r2": 0.9968624164425317,
+          "bias_kwh": -0.03185172294505852,
+          "median_abs_error_kwh": 0.0007597305229865015,
+          "p95_abs_error_kwh": 0.31172350484346545,
+          "max_abs_error_kwh": 0.5718054130092565,
+          "wape_pct": 3.9495023341220183,
+          "nrmse_pct": 9.15526567850776,
+          "total_energy_error_pct": -2.631569842337753
+        },
+        "daylight_hours": {
+          "samples": 56,
+          "mae": 0.14243945660673593,
+          "rmse": 0.19193081917603322,
+          "r2": 0.9875169640102449,
+          "bias_kwh": -0.09652644611064984,
+          "median_abs_error_kwh": 0.08363217725210692,
+          "p95_abs_error_kwh": 0.3723911641077464,
+          "max_abs_error_kwh": 0.5718054130092565,
+          "wape_pct": 3.9227535562396314,
+          "nrmse_pct": 5.285735577842451,
+          "total_energy_error_pct": -2.65831862022014
+        }
+      }
+    },
+    "lstm": {
+      "validation": {
+        "all_hours": {
+          "samples": 168,
+          "mae": 0.08594567463256261,
+          "rmse": 0.12421440843196108,
+          "r2": 0.9973686670454056,
+          "bias_kwh": -0.014816469386559087,
+          "median_abs_error_kwh": 0.060070864856243134,
+          "p95_abs_error_kwh": 0.29764008007075304,
+          "max_abs_error_kwh": 0.3609036378918713,
+          "wape_pct": 5.816302781470355,
+          "nrmse_pct": 8.40610783905331,
+          "total_energy_error_pct": -1.0026923690231142
+        },
+        "daylight_hours": {
+          "samples": 56,
+          "mae": 0.16199179571187713,
+          "rmse": 0.19691813529714963,
+          "r2": 0.9913636157026929,
+          "bias_kwh": -0.14029463634548792,
+          "median_abs_error_kwh": 0.11413368425939119,
+          "p95_abs_error_kwh": 0.3350327845736665,
+          "max_abs_error_kwh": 0.3609036378918713,
+          "wape_pct": 3.6542204751333154,
+          "nrmse_pct": 4.44209090198484,
+          "total_energy_error_pct": -3.1647746753601536
+        }
+      },
+      "test": {
+        "all_hours": {
+          "samples": 168,
+          "mae": 0.017593020474012268,
+          "rmse": 0.032296713868172074,
+          "r2": 0.9997334774183229,
+          "bias_kwh": 0.01097966309810975,
+          "median_abs_error_kwh": 0.006647528149187565,
+          "p95_abs_error_kwh": 0.07431271452721067,
+          "max_abs_error_kwh": 0.14932090591510672,
+          "wape_pct": 1.4535245768305882,
+          "nrmse_pct": 2.6683347198735645,
+          "total_energy_error_pct": 0.9071330407417381
+        },
+        "daylight_hours": {
+          "samples": 56,
+          "mae": 0.03860624007684655,
+          "rmse": 0.05185624685627096,
+          "r2": 0.999088759631474,
+          "bias_kwh": 0.01876616794913899,
+          "median_abs_error_kwh": 0.022783627164675302,
+          "p95_abs_error_kwh": 0.11173789113078891,
+          "max_abs_error_kwh": 0.14932090591510672,
+          "wape_pct": 1.0632079703351598,
+          "nrmse_pct": 1.4281104520800134,
+          "total_energy_error_pct": 0.5168164342463093
+        }
+      }
+    }
+  },
+  "detailed_metrics_note": "Errors are predicted minus actual, in kWh per row per hour. bias > 0 means over-prediction. WAPE is total absolute error over total actual energy; nRMSE is RMSE over mean actual energy; total_energy_error is the summed prediction against the summed actual. Daylight hours exclude night rows, whose zero energy is trivially predicted. Model selection uses validation RMSE only.",
   "lstm_without_history": {
     "validation": {
       "mae": 0.11096548626332729,
