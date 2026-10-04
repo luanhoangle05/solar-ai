@@ -6,11 +6,13 @@ import { FarmMap } from "./farm-map";
 import { RowDetails, ZoneDetails, ZoneNavigator } from "./farm-details";
 import { FarmDistributions, FarmSummaryPanel } from "./farm-summaries";
 import { RowTable } from "./row-table";
+import { Farm3DLoader } from "../farm-3d/farm-3d-loader";
 
 export function FarmExplorer({ data, summary }: { data:FarmExplorerData; summary:FarmSummary }) {
   // Only inspection and filters are mutable; the validated payload is never changed.
   const [selection,setSelection] = useState(()=>getInitialSelection(data.farm_status,summary.targetRow));
   const [filters,setFilters] = useState({...emptyRowFilters});
+  const [view,setView] = useState<"2d"|"3d">("2d");
   const row = getRowById(data.farm_status,selection.rowId);
   const zone = getZoneById(data.farm_status,selection.zoneId);
   function inspectRow(id:string) {
@@ -18,9 +20,12 @@ export function FarmExplorer({ data, summary }: { data:FarmExplorerData; summary
     if (selected) setSelection({rowId:selected.row_id,zoneId:selected.zone_id});
   }
   function inspectZone(id:string) { setSelection(getZoneSelection(data.farm_status,id,selection.rowId)); }
-  return <div className="fx-grid">
+  return <div className="fx-grid" data-view={view}>
     <FarmSummaryPanel data={data} summary={summary}/>
-    <FarmMap farm={data.farm_status} targetId={data.metadata.control_target_id} selectedZone={selection.zoneId} selectedRow={selection.rowId} onZone={inspectZone} onRow={inspectRow}/>
+    <div className="fx-visual">
+      <div className="fx-view-bar"><span>EXPLORE THE FARM <small>Inspection only</small></span><div role="group" aria-label="Farm view"><button type="button" aria-pressed={view === "2d"} onClick={()=>setView("2d")}>2D Schematic</button><button type="button" aria-pressed={view === "3d"} onClick={()=>setView("3d")}>3D Farm</button></div></div>
+      {view === "2d" ? <FarmMap farm={data.farm_status} targetId={data.metadata.control_target_id} selectedZone={selection.zoneId} selectedRow={selection.rowId} onZone={inspectZone} onRow={inspectRow}/> : <Farm3DLoader farm={data.farm_status} targetId={data.metadata.control_target_id} selectedZone={selection.zoneId} selectedRow={selection.rowId} onZone={inspectZone} onRow={inspectRow} onExit={()=>setView("2d")}/>}
+    </div>
     <RowDetails data={data} row={row} onRow={inspectRow}/>
     <ZoneDetails data={data} zone={zone}/>
     <FarmDistributions summary={summary}/>
