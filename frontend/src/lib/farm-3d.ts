@@ -87,7 +87,7 @@ export function getSceneEnvironment(weather: SceneWeather, bounds: FarmSceneLayo
     scale: 1.5 + fraction(Math.sin(index * 3.7 + 5.1) * 9871.13) * 1.4,
   }));
   // High and slightly in front of the rows, so the tilted panel faces are lit rather than silhouetted.
-  const sunPosition: Vec3 = [-(bounds.width / 2 + 14), 22, bounds.depth * 0.1];
+  const sunPosition: Vec3 = [-(bounds.width / 2 + 20), 30, bounds.depth * 0.1];
   // Clouds drift faster in stronger supplied wind; the payload has no wind direction, so the heading is illustrative.
   const cloudDrift = 0.25 + 0.03 * Math.min(sceneSky.maxWindKmh, Math.max(0, weather.windSpeedKmh ?? 0));
   return { cover, cloudCount, clouds, sunPosition, cloudDrift, driftSpan: Math.max(bounds.width, bounds.depth) * 1.1 + 20, depth: bounds.depth, brightness, sunIntensity: 0.8 + 3 * brightness, skyIntensity: 0.6 + 0.8 * brightness * (1 - 0.5 * cover), shadowExtent: Math.max(bounds.width, bounds.depth) / 2 + 24 };

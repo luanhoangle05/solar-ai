@@ -94,12 +94,30 @@ function RowMarker({ row, target, labels, portal }: { row: SceneRow; target: boo
 
 // Procedural textures only: nothing is downloaded, so the scene works offline.
 function makeRadialTexture(stops: [number, string][]) {
-  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 128;
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
   const context = canvas.getContext("2d");
   if (context) {
-    const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+    const gradient = context.createRadialGradient(128, 128, 0, 128, 128, 128);
     stops.forEach(([offset, color]) => gradient.addColorStop(offset, color));
-    context.fillStyle = gradient; context.fillRect(0, 0, 128, 128);
+    context.fillStyle = gradient; context.fillRect(0, 0, 256, 256);
+  }
+  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
+  return texture;
+}
+/** Thin streaks like the diffraction spikes a camera lens puts around a bright sun. */
+function makeSunRaysTexture() {
+  const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.translate(128, 128);
+    for (let ray = 0; ray < 12; ray++) {
+      const length = ray % 2 === 0 ? 124 : 76;
+      const streak = context.createLinearGradient(0, 0, length, 0);
+      streak.addColorStop(0, "rgba(255,250,235,.5)"); streak.addColorStop(0.35, "rgba(255,244,215,.14)"); streak.addColorStop(1, "rgba(255,240,205,0)");
+      context.fillStyle = streak;
+      context.beginPath(); context.moveTo(0, -1.6); context.lineTo(length, 0); context.lineTo(0, 1.6); context.closePath(); context.fill();
+      context.rotate(Math.PI / 6);
+    }
   }
   const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
   return texture;
@@ -155,11 +173,12 @@ function makeModuleTexture() {
  */
 function SceneSky({ environment, layout }: { environment: SceneEnvironment; layout: FarmSceneLayout }) {
   const reach = Math.max(layout.bounds.width, layout.bounds.depth);
-  const glow = useMemo(() => makeRadialTexture([[0, "rgba(255,244,200,1)"], [0.22, "rgba(255,222,140,.6)"], [1, "rgba(255,205,110,0)"]]), []);
+  const glow = useMemo(() => makeRadialTexture([[0, "rgba(255,255,250,1)"], [0.045, "rgba(255,253,240,.98)"], [0.09, "rgba(255,244,212,.55)"], [0.2, "rgba(255,232,180,.2)"], [0.45, "rgba(255,224,170,.06)"], [1, "rgba(255,220,165,0)"]]), []);
+  const rays = useMemo(() => makeSunRaysTexture(), []);
   const shade = useMemo(() => makeRadialTexture([[0, "rgba(0,0,0,.85)"], [0.55, "rgba(0,0,0,.4)"], [1, "rgba(0,0,0,0)"]]), []);
   const ground = useMemo(() => makeGroundTexture(reach * 1.4), [reach]);
   const cloudUrl = useMemo(() => makeCloudPuffUrl(), []);
-  useEffect(() => () => { glow.dispose(); shade.dispose(); }, [glow, shade]);
+  useEffect(() => () => { glow.dispose(); shade.dispose(); rays.dispose(); }, [glow, shade, rays]);
   useEffect(() => () => ground.dispose(), [ground]);
   const extent = environment.shadowExtent;
   const [sunX, sunY, sunZ] = environment.sunPosition;
@@ -181,19 +200,20 @@ function SceneSky({ environment, layout }: { environment: SceneEnvironment; layo
       cloudShades.current[index]?.position.set(cloudX - x / y * cloud.position[1], 0.16, cloud.position[2] - z / y * cloud.position[1]);
     });
   });
-  const glowSize = 9 + 16 * environment.brightness;
+  const glowSize = 30 + 22 * environment.brightness;
   // Memoized so the reflection cube map is rendered once, not on every hover re-render.
   const atmosphere = useMemo(() => <DreiSky distance={900} sunPosition={environment.sunPosition} turbidity={3 + 9 * environment.cover} rayleigh={0.9 + environment.cover} mieCoefficient={0.006} mieDirectionalG={0.86}/>, [environment.sunPosition, environment.cover]);
   return <>
     {atmosphere}<Environment resolution={128}>{atmosphere}</Environment>
     <fog attach="fog" args={["#b4c8da", reach * 2.2, reach * 7]}/>
-    <ambientLight intensity={0.18}/><hemisphereLight args={["#d7eaff", "#54603a", environment.skyIntensity * 0.45]}/>
-    <directionalLight ref={sunLight} castShadow color="#fff0d2" position={[sunX * 3, sunY * 3, sunZ * 3]} intensity={environment.sunIntensity}
-      shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.03} shadow-radius={5} shadow-camera-near={1} shadow-camera-far={reach * 8} shadow-camera-left={-extent} shadow-camera-right={extent} shadow-camera-top={extent} shadow-camera-bottom={-extent}/>
+    <ambientLight intensity={0.08}/><hemisphereLight args={["#bcd9ff", "#5f6b45", environment.skyIntensity * 0.34]}/>
+    <directionalLight ref={sunLight} castShadow color="#ffe7c2" position={[sunX * 3, sunY * 3, sunZ * 3]} intensity={environment.sunIntensity * 1.25}
+      shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.03} shadow-radius={3} shadow-camera-near={1} shadow-camera-far={reach * 8} shadow-camera-left={-extent} shadow-camera-right={extent} shadow-camera-top={extent} shadow-camera-bottom={-extent}/>
     <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.36, 0]}><planeGeometry args={[reach * 14, reach * 14]}/><meshStandardMaterial map={ground} roughness={1} envMapIntensity={0.35}/></mesh>
     <group ref={sun} position={environment.sunPosition}>
-      <mesh><sphereGeometry args={[2.1, 24, 24]}/><meshBasicMaterial color="#fff3c4" toneMapped={false} fog={false}/></mesh>
+      <mesh><sphereGeometry args={[1.15, 32, 32]}/><meshBasicMaterial color="#fffef8" toneMapped={false} fog={false}/></mesh>
       <sprite scale={[glowSize, glowSize, 1]}><spriteMaterial map={glow} blending={AdditiveBlending} depthWrite={false} transparent toneMapped={false} fog={false}/></sprite>
+      <sprite scale={[glowSize * 0.62, glowSize * 0.62, 1]}><spriteMaterial map={rays} blending={AdditiveBlending} depthWrite={false} transparent opacity={0.35 + 0.4 * environment.brightness} toneMapped={false} fog={false}/></sprite>
     </group>
     {/* The cloud texture decodes asynchronously; this boundary lets the farm render first and the clouds appear after. */}
     <Suspense fallback={null}><Clouds texture={cloudUrl} limit={700} material={MeshBasicMaterial}>
