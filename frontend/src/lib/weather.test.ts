@@ -1,0 +1,20 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import { loadFrontendData } from "./frontend-data.server";
+import { getWeatherView } from "./weather";
+import type { FrontendData } from "../types/solar";
+let data: FrontendData;
+beforeAll(async () => { data = await loadFrontendData(); });
+describe("weather inspection", () => {
+  it("presents supplied weather", () => expect(getWeatherView(data).conditions).not.toBeNull());
+  it("keeps missing weather unavailable", () => expect(getWeatherView({...data,current_weather:null}).conditions).toBeNull());
+  it.each([["temperature","22°C"],["cloud","15%"],["precipitation","0 mm"],["wind","14 km/h"],["gust","24 km/h"]] as const)("formats %s", (key,value) => expect(getWeatherView(data).conditions?.[key]).toBe(value));
+  it.each([["GHI",850],["DNI",750],["DHI",201]])("maps %s irradiance", (label,value) => expect(getWeatherView(data).irradiance.find(item=>item.label===label)?.value).toBe(value));
+  it.each([["VALID","success"],["DEGRADED","warning"],["STALE","warning"],["INVALID","danger"]] as const)("preserves %s quality", (status,variant) => expect(getWeatherView({...data,data_agent:{...data.data_agent,status}}).quality).toMatchObject({status,variant}));
+  it("shows age at run", () => expect(getWeatherView(data).quality.age).toBe("5 min"));
+  it("unknown age stays unavailable", () => expect(getWeatherView({...data,data_agent:{...data.data_agent,forecast_age_minutes:null}}).quality.age).toBe("Unavailable"));
+  it.each([true,false])("reports cache %s", used_cache => expect(getWeatherView({...data,data_agent:{...data.data_agent,used_cache}}).quality.cache).toBe(used_cache ? "Yes" : "No"));
+  it("keeps empty issues", () => expect(getWeatherView(data).quality.issues).toEqual([]));
+  it("preserves issue text without deriving validity", () => expect(getWeatherView({...data,data_agent:{...data.data_agent,status:"STALE",issues:["Older input"]}}).quality.issues).toEqual(["Older input"]));
+  it("does not invent missing weather fields", () => expect(Object.keys(getWeatherView(data).conditions!)).toEqual(["temperature","cloud","precipitation","wind","gust"]));
+  it("null weather retains quality and no irradiance zeros", () => expect(getWeatherView({...data,current_weather:null})).toMatchObject({irradiance:[],quality:{source:"mock_csv"}}));
+});

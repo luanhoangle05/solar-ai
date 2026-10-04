@@ -1,0 +1,25 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import { loadFrontendData } from "./frontend-data.server";
+import { getScenarioView } from "./simulation";
+import { getOptimizationSummary } from "./optimization";
+import type { FrontendData } from "../types/solar";
+let data: FrontendData;
+beforeAll(async () => { data=await loadFrontendData(); });
+describe("recorded scenario evidence", () => {
+  it("maps environmental input", () => expect(getScenarioView(data).input.weather).toMatchObject({temperature:"22°C",wind:"14 km/h"}));
+  it("maps target", () => expect(getScenarioView(data).input.target).toBe("row-001"));
+  it("maps horizon", () => expect(getScenarioView(data).input.horizon).toBe(60));
+  it("maps row scope", () => expect(getScenarioView(data).input.scope).toBe("row"));
+  it("maps selected model", () => expect(getScenarioView(data).input.model).toBe("Boosting"));
+  it("counts supplied candidates", () => expect(getScenarioView(data).input.candidateCount).toBe(7));
+  it("shows optimization evidence", () => expect(getScenarioView(data).stages[4]).toMatchObject({evidence:"Recommended 45°",available:true}));
+  it("handles missing optimization", () => expect(getScenarioView({...data,optimization:null}).stages[4]).toMatchObject({evidence:"Result unavailable",available:false}));
+  it.each([true,false])("reports supplied safety %s", passed => expect(getScenarioView({...data,safety:{...data.safety,passed}}).stages[5].evidence).toBe(passed ? "PASS" : "FAIL"));
+  it.each(["ROTATE","HOLD","STOW"] as const)("preserves %s decision", action => expect(getScenarioView({...data,decision:{...data.decision,action}}).agents.decision.action).toBe(action));
+  it("filters only actual model optimization manager events", () => expect(getScenarioView(data).agents.events).toEqual(data.agent_log.filter(event=>event.agent!=="data")));
+  it("keeps empty events empty", () => expect(getScenarioView({...data,agent_log:[]}).agents.events).toEqual([]));
+  it("has no fabricated progress state", () => expect(getScenarioView(data).stages.every(stage=>Object.keys(stage).join() === "title,evidence,available")).toBe(true));
+  it("reuses optimization explanation", () => expect(getScenarioView(data).optimization.insight).toBe(getOptimizationSummary(data).insight));
+  it("keeps snapshot angle distinct from decision", () => expect(getScenarioView(data).input.currentAngle).toBe(35));
+  it("handles missing input and model", () => { const view=getScenarioView({...data,current_weather:null,selected_model:null,candidate_predictions:[]}); expect(view.input.weather).toBeNull(); expect(view.stages.slice(0,4).filter(s=>!s.available)).toHaveLength(3); });
+});

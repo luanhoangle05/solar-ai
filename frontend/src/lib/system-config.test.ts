@@ -1,0 +1,24 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import { loadFrontendData } from "./frontend-data.server";
+import { getSystemConfigView } from "./system-config";
+import { metadataSchema } from "../schemas/frontend-data";
+import type { FrontendData } from "../types/solar";
+let data: FrontendData;
+beforeAll(async () => { data=await loadFrontendData(); });
+describe("read-only system configuration", () => {
+  it("maps schema version", () => expect(getSystemConfigView(data).metadata.schema_version).toBe("0.1.0"));
+  it("maps MOCK dataset", () => expect(getSystemConfigView(data).metadata.dataset_kind).toBe("MOCK"));
+  it("supports schema-permitted LIVE mode", () => { const metadata=metadataSchema.parse({...data.metadata,dataset_kind:"LIVE",label_source:"measured"}); expect(getSystemConfigView({...data,metadata}).metadata.dataset_kind).toBe("LIVE"); });
+  it.each(["mock","measured","physics-derived","unavailable"] as const)("preserves %s labels", label_source => expect(getSystemConfigView({...data,metadata:{...data.metadata,label_source}}).metadata.label_source).toBe(label_source));
+  it("maps energy scope", () => expect(getSystemConfigView(data).metadata.energy_scope).toBe("row"));
+  it("maps horizon", () => expect(getSystemConfigView(data).metadata.prediction_horizon_minutes).toBe(60));
+  it("maps interval", () => expect(getSystemConfigView(data).metadata.interval_start).toBe(data.metadata.interval_start));
+  it("maps control target", () => expect(getSystemConfigView(data).farm.targetRow?.row_id).toBe("row-001"));
+  it("maps config ID", () => expect(getSystemConfigView(data).metadata.config_id).toBe("prototype-row-hour-v1"));
+  it("preserves assumptions verbatim", () => expect(getSystemConfigView(data).metadata.assumptions).toEqual(data.metadata.assumptions));
+  it("does not invent empty assumptions", () => expect(getSystemConfigView({...data,metadata:{...data.metadata,assumptions:[]}}).metadata.assumptions).toEqual([]));
+  it("uses supplied farm counts", () => expect(getSystemConfigView(data).farm).toMatchObject({totalPanels:1000,totalRows:50,zoneCount:4}));
+  it("preserves provenance timestamp", () => expect(getSystemConfigView(data).timestamp).toBe(data.timestamp));
+  it("declares read-only configuration", () => expect(getSystemConfigView(data).readOnly).toBe(true));
+  it("does not mutate metadata", () => { const before=JSON.stringify(data); getSystemConfigView(data); expect(JSON.stringify(data)).toBe(before); });
+});
