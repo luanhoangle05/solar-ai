@@ -57,17 +57,17 @@
       "model": "boosting",
       "implementation": "xgboost",
       "status": "VALIDATED",
-      "mae": 0.10423943662127742,
-      "rmse": 0.22747896423874012,
-      "r2": 0.991175007634491
+      "mae": 0.10587366507065206,
+      "rmse": 0.23065626340857687,
+      "r2": 0.990926760839135
     },
     {
       "model": "lstm",
       "implementation": "pytorch",
       "status": "VALIDATED",
-      "mae": 0.08594567463256261,
-      "rmse": 0.12421440843196108,
-      "r2": 0.9973686670454056
+      "mae": 0.11598889232489855,
+      "rmse": 0.14767508500727827,
+      "r2": 0.9962808275758109
     }
   ],
   "unavailable_reasons": {
@@ -75,7 +75,7 @@
     "random_forest": "adapter not delivered yet"
   },
   "selected_model": "lstm",
-  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.1242 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
+  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.1477 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
   "test_metrics": [
     {
       "model": "linear_regression",
@@ -97,17 +97,17 @@
       "model": "boosting",
       "implementation": "xgboost",
       "status": "VALIDATED",
-      "mae": 0.04780357796073675,
-      "rmse": 0.11081255803614926,
-      "r2": 0.9968624164425317
+      "mae": 0.04916621698090541,
+      "rmse": 0.10478743475912208,
+      "r2": 0.997194335370263
     },
     {
       "model": "lstm",
       "implementation": "pytorch",
       "status": "VALIDATED",
-      "mae": 0.017593020474012268,
-      "rmse": 0.032296713868172074,
-      "r2": 0.9997334774183229
+      "mae": 0.02291165722351892,
+      "rmse": 0.03541138472105745,
+      "r2": 0.9996795921417501
     }
   ],
   "detailed_metrics": {
@@ -115,57 +115,57 @@
       "validation": {
         "all_hours": {
           "samples": 168,
-          "mae": 0.10423943662127742,
-          "rmse": 0.22747896423874012,
-          "r2": 0.991175007634491,
-          "bias_kwh": -0.10226557215400656,
-          "median_abs_error_kwh": 0.000215991007280536,
-          "p95_abs_error_kwh": 0.5901351749137893,
-          "max_abs_error_kwh": 1.05235030403243,
-          "wape_pct": 7.054318064885278,
-          "nrmse_pct": 15.394451647325786,
-          "total_energy_error_pct": -6.920738411920595
+          "mae": 0.10587366507065206,
+          "rmse": 0.23065626340857687,
+          "r2": 0.990926760839135,
+          "bias_kwh": -0.10373979546842077,
+          "median_abs_error_kwh": 0.00022944500960875303,
+          "p95_abs_error_kwh": 0.6196523822861995,
+          "max_abs_error_kwh": 1.0338857387553304,
+          "wape_pct": 7.164913129922496,
+          "nrmse_pct": 15.60947275313584,
+          "total_energy_error_pct": -7.020505261163374
         },
         "daylight_hours": {
           "samples": 56,
-          "mae": 0.3125314597371104,
-          "rmse": 0.3940050684305371,
-          "r2": 0.9654248440986797,
-          "bias_kwh": -0.30698356658874154,
-          "median_abs_error_kwh": 0.2192346474766258,
-          "p95_abs_error_kwh": 0.810010974959356,
-          "max_abs_error_kwh": 1.05235030403243,
-          "wape_pct": 7.050103088714122,
-          "nrmse_pct": 8.887989555508133,
-          "total_energy_error_pct": -6.924953388091751
+          "mae": 0.3173464900479455,
+          "rmse": 0.3995082941618639,
+          "r2": 0.9644522489442215,
+          "bias_kwh": -0.311493891569273,
+          "median_abs_error_kwh": 0.2149268432718059,
+          "p95_abs_error_kwh": 0.832100933150274,
+          "max_abs_error_kwh": 1.0338857387553304,
+          "wape_pct": 7.158720826253971,
+          "nrmse_pct": 9.01213164590426,
+          "total_energy_error_pct": -7.026697564831899
         }
       },
       "test": {
         "all_hours": {
           "samples": 168,
-          "mae": 0.04780357796073675,
-          "rmse": 0.11081255803614926,
-          "r2": 0.9968624164425317,
-          "bias_kwh": -0.03185172294505852,
-          "median_abs_error_kwh": 0.0007597305229865015,
-          "p95_abs_error_kwh": 0.31172350484346545,
-          "max_abs_error_kwh": 0.5718054130092565,
-          "wape_pct": 3.9495023341220183,
-          "nrmse_pct": 9.15526567850776,
-          "total_energy_error_pct": -2.631569842337753
+          "mae": 0.04916621698090541,
+          "rmse": 0.10478743475912208,
+          "r2": 0.997194335370263,
+          "bias_kwh": -0.02105727783553624,
+          "median_abs_error_kwh": 0.0007107909768819809,
+          "p95_abs_error_kwh": 0.233333151906022,
+          "max_abs_error_kwh": 0.4888289787326059,
+          "wape_pct": 4.062082735428844,
+          "nrmse_pct": 8.6574736834078,
+          "total_energy_error_pct": -1.7397393983775455
         },
         "daylight_hours": {
           "samples": 56,
-          "mae": 0.14243945660673593,
-          "rmse": 0.19193081917603322,
-          "r2": 0.9875169640102449,
-          "bias_kwh": -0.09652644611064984,
-          "median_abs_error_kwh": 0.08363217725210692,
-          "p95_abs_error_kwh": 0.3723911641077464,
-          "max_abs_error_kwh": 0.5718054130092565,
-          "wape_pct": 3.9227535562396314,
-          "nrmse_pct": 5.285735577842451,
-          "total_energy_error_pct": -2.65831862022014
+          "mae": 0.14662676031454663,
+          "rmse": 0.1814950609661467,
+          "r2": 0.9888375272699073,
+          "bias_kwh": -0.06404372413477835,
+          "median_abs_error_kwh": 0.1323206028214896,
+          "p95_abs_error_kwh": 0.40071536925895623,
+          "max_abs_error_kwh": 0.4888289787326059,
+          "wape_pct": 4.038071045523656,
+          "nrmse_pct": 4.998336927179855,
+          "total_energy_error_pct": -1.7637510882827334
         }
       }
     },
@@ -173,57 +173,57 @@
       "validation": {
         "all_hours": {
           "samples": 168,
-          "mae": 0.08594567463256261,
-          "rmse": 0.12421440843196108,
-          "r2": 0.9973686670454056,
-          "bias_kwh": -0.014816469386559087,
-          "median_abs_error_kwh": 0.060070864856243134,
-          "p95_abs_error_kwh": 0.29764008007075304,
-          "max_abs_error_kwh": 0.3609036378918713,
-          "wape_pct": 5.816302781470355,
-          "nrmse_pct": 8.40610783905331,
-          "total_energy_error_pct": -1.0026923690231142
+          "mae": 0.11598889232489855,
+          "rmse": 0.14767508500727827,
+          "r2": 0.9962808275758109,
+          "bias_kwh": 0.009952857260452742,
+          "median_abs_error_kwh": 0.08322884142398834,
+          "p95_abs_error_kwh": 0.3379304844206974,
+          "max_abs_error_kwh": 0.41713752079592403,
+          "wape_pct": 7.8494528076387216,
+          "nrmse_pct": 9.993789813784064,
+          "total_energy_error_pct": 0.6735514220469694
         },
         "daylight_hours": {
           "samples": 56,
-          "mae": 0.16199179571187713,
-          "rmse": 0.19691813529714963,
-          "r2": 0.9913636157026929,
-          "bias_kwh": -0.14029463634548792,
-          "median_abs_error_kwh": 0.11413368425939119,
-          "p95_abs_error_kwh": 0.3350327845736665,
-          "max_abs_error_kwh": 0.3609036378918713,
-          "wape_pct": 3.6542204751333154,
-          "nrmse_pct": 4.44209090198484,
-          "total_energy_error_pct": -3.1647746753601536
+          "mae": 0.19224485816263717,
+          "rmse": 0.2264061616398306,
+          "r2": 0.9885833939849274,
+          "bias_kwh": -0.12586324703070023,
+          "median_abs_error_kwh": 0.17061554815531133,
+          "p95_abs_error_kwh": 0.3976228450785726,
+          "max_abs_error_kwh": 0.41713752079592403,
+          "wape_pct": 4.33667084095112,
+          "nrmse_pct": 5.107283538186939,
+          "total_energy_error_pct": -2.8392305446406327
         }
       },
       "test": {
         "all_hours": {
           "samples": 168,
-          "mae": 0.017593020474012268,
-          "rmse": 0.032296713868172074,
-          "r2": 0.9997334774183229,
-          "bias_kwh": 0.01097966309810975,
-          "median_abs_error_kwh": 0.006647528149187565,
-          "p95_abs_error_kwh": 0.07431271452721067,
-          "max_abs_error_kwh": 0.14932090591510672,
-          "wape_pct": 1.4535245768305882,
-          "nrmse_pct": 2.6683347198735645,
-          "total_energy_error_pct": 0.9071330407417381
+          "mae": 0.02291165722351892,
+          "rmse": 0.03541138472105745,
+          "r2": 0.9996795921417501,
+          "bias_kwh": 0.002383007305292496,
+          "median_abs_error_kwh": 0.014882542166216872,
+          "p95_abs_error_kwh": 0.07817252655365081,
+          "max_abs_error_kwh": 0.13115517704997837,
+          "wape_pct": 1.8929470877099381,
+          "nrmse_pct": 2.9256669181788104,
+          "total_energy_error_pct": 0.19688260410575936
         },
         "daylight_hours": {
           "samples": 56,
-          "mae": 0.03860624007684655,
-          "rmse": 0.05185624685627096,
-          "r2": 0.999088759631474,
-          "bias_kwh": 0.01876616794913899,
-          "median_abs_error_kwh": 0.022783627164675302,
-          "p95_abs_error_kwh": 0.11173789113078891,
-          "max_abs_error_kwh": 0.14932090591510672,
-          "wape_pct": 1.0632079703351598,
-          "nrmse_pct": 1.4281104520800134,
-          "total_energy_error_pct": 0.5168164342463093
+          "mae": 0.04251985970071964,
+          "rmse": 0.052817109014598844,
+          "r2": 0.9990546773996039,
+          "bias_kwh": -0.019066090053959626,
+          "median_abs_error_kwh": 0.035155586546425255,
+          "p95_abs_error_kwh": 0.09559252638634153,
+          "max_abs_error_kwh": 0.13115517704997837,
+          "wape_pct": 1.170988255819564,
+          "nrmse_pct": 1.4545723997624125,
+          "total_energy_error_pct": -0.5250762277846145
         }
       }
     }
@@ -231,25 +231,25 @@
   "detailed_metrics_note": "Errors are predicted minus actual, in kWh per row per hour. bias > 0 means over-prediction. WAPE is total absolute error over total actual energy; nRMSE is RMSE over mean actual energy; total_energy_error is the summed prediction against the summed actual. Daylight hours exclude night rows, whose zero energy is trivially predicted. Model selection uses validation RMSE only.",
   "lstm_without_history": {
     "validation": {
-      "mae": 0.11096548626332729,
-      "rmse": 0.12984943443570054,
-      "r2": 0.997124509223885
+      "mae": 0.11541781136638589,
+      "rmse": 0.1332108586117669,
+      "r2": 0.9969737060531615
     },
     "test": {
-      "mae": 0.01876669764122844,
-      "rmse": 0.030096626770147603,
-      "r2": 0.9997685522384783
+      "mae": 0.044874787834627415,
+      "rmse": 0.05905778101628885,
+      "r2": 0.9991088073626269
     }
   },
   "decision_quality_source": "dataset energy labels for the same hour and angle (physics-derived)",
   "decision_quality": {
     "boosting": {
       "hours": 8,
-      "best_angle_match_rate": 1.0,
-      "mean_regret_kwh": 0.0,
-      "max_regret_kwh": 0.0,
-      "total_regret_kwh": 0.0,
-      "mean_curve_error_kwh": 0.034386318582230485
+      "best_angle_match_rate": 0.875,
+      "mean_regret_kwh": 0.002026801758530261,
+      "max_regret_kwh": 0.01621441406824209,
+      "total_regret_kwh": 0.01621441406824209,
+      "mean_curve_error_kwh": 0.037720088358961866
     },
     "lstm": {
       "hours": 8,
@@ -257,7 +257,7 @@
       "mean_regret_kwh": 0.0,
       "max_regret_kwh": 0.0,
       "total_regret_kwh": 0.0,
-      "mean_curve_error_kwh": 0.011502010981736626
+      "mean_curve_error_kwh": 0.0070014569848204046
     }
   },
   "decision_quality_note": "Each model's best candidate angle is compared with the true best angle according to the stated energy source, on test-window hours where the true energy depends on the angle. Regret is true kWh lost per hour.",
@@ -280,7 +280,7 @@
       "rotate_count": 1,
       "hold_count": 23,
       "stow_count": 0,
-      "unnecessary_moves_avoided": 0,
+      "unnecessary_moves_avoided": 7,
       "severe_safety_events": 0,
       "unsafe_rotations": 0,
       "error_hours": 0
@@ -288,15 +288,15 @@
     {
       "hours": 24,
       "energy_source": "model-predicted (lstm)",
-      "baseline_kwh": 27.00881369318813,
-      "optimized_kwh": 32.34852136578411,
-      "energy_gain_kwh": 5.339707672595978,
+      "baseline_kwh": 26.743561414070427,
+      "optimized_kwh": 31.858839181251824,
+      "energy_gain_kwh": 5.1152777671813965,
       "movement_cost_kwh_equivalent": 0.07500000000000001,
-      "net_benefit_kwh_equivalent": 5.264707672595978,
+      "net_benefit_kwh_equivalent": 5.040277767181396,
       "rotate_count": 1,
       "hold_count": 23,
       "stow_count": 0,
-      "unnecessary_moves_avoided": 0,
+      "unnecessary_moves_avoided": 7,
       "severe_safety_events": 0,
       "unsafe_rotations": 0,
       "error_hours": 0
