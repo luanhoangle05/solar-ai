@@ -117,6 +117,16 @@ export function getSunArcPosition(seconds: number): Vec3 {
   const flat = Math.cos(elevation) * sceneSky.sunDistance;
   return [(aheadX * Math.cos(sweep) - aheadZ * Math.sin(sweep)) * flat, Math.sin(elevation) * sceneSky.sunDistance, (aheadX * Math.sin(sweep) + aheadZ * Math.cos(sweep)) * flat];
 }
+/** The lowest and highest panel tilt the tracking demo may show: the candidate angles the backend evaluated. */
+export type TrackingRange = { minDeg: number; maxDeg: number };
+/**
+ * Panel tilt for the tracking demo after `seconds`, in step with the sun's arc: steepest while the sun is
+ * lowest and flattest when it is highest. An illustration of sun tracking, never a recorded or recommended angle.
+ */
+export function getTrackingTiltDeg(seconds: number, range: TrackingRange): number {
+  const swing = Math.cos(seconds * 2 * Math.PI / sceneSky.sunPeriodSeconds);
+  return range.maxDeg - (range.maxDeg - range.minDeg) * (1 - swing * swing);
+}
 /** A cloud's x position after drifting for `seconds`, wrapped so it re-enters from the far side. */
 export function getCloudDriftX(startX: number, environment: Pick<SceneEnvironment, "cloudDrift" | "driftSpan">, seconds: number): number {
   const span = environment.driftSpan * 2;

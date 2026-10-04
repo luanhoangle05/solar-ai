@@ -6,7 +6,7 @@ import { FarmMap } from "@/components/farm/farm-map";
 import { Farm3DLoader } from "@/components/farm-3d/farm-3d-loader";
 import { rowStatePresentation } from "@/config/row-states";
 import { getInitialSelection, getRowById, getZoneSelection } from "@/lib/farm";
-import { getPreviewAngle, getPreviewFarm, getRowSimulationView, getSimulationConditions, type FarmSimulationData, type RowSimulationView } from "@/lib/farm-simulation";
+import { getCandidateAngleRange, getPreviewAngle, getPreviewFarm, getRowSimulationView, getSimulationConditions, type FarmSimulationData, type RowSimulationView } from "@/lib/farm-simulation";
 import { formatAngle } from "@/lib/formatters";
 import "@/app/(solar)/farm/farm.css";
 import "./solar-farm-simulation.css";
@@ -35,6 +35,8 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
   function inspectZone(id: string) { setSelection(getZoneSelection(data.farm_status, id, selection.rowId)); }
   const cloudCoverPct = data.current_weather?.cloud_cover_pct, ghiWm2 = data.current_weather?.ghi_wm2, windSpeedKmh = data.current_weather?.wind_speed_kmh;
   const sceneWeather = useMemo(() => cloudCoverPct === undefined || ghiWm2 === undefined ? undefined : { cloudCoverPct, ghiWm2, windSpeedKmh }, [cloudCoverPct, ghiWm2, windSpeedKmh]);
+  const candidates = data.candidate_predictions;
+  const trackingRange = useMemo(() => getCandidateAngleRange({ candidate_predictions: candidates }) ?? undefined, [candidates]);
   const sceneProps = { farm, targetId, selectedZone: selection.zoneId, selectedRow: selection.rowId, onZone: inspectZone, onRow: inspectRow };
 
   return <section className="sfs" aria-label="Solar Farm Simulation">
@@ -52,7 +54,7 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
           {isPreviewing && <span className="sfs-preview-tag"><Eye size={13} aria-hidden="true"/>PREVIEW · {data.decision.action} · {targetId} drawn at {formatAngle(previewAngle)}</span>}
           <div role="group" aria-label="Farm view"><button type="button" aria-pressed={view === "2d"} onClick={() => setView("2d")}>2D</button><button type="button" aria-pressed={view === "3d"} onClick={() => setView("3d")}>3D</button></div>
         </div>
-        {view === "3d" ? <Farm3DLoader {...sceneProps} weather={sceneWeather} onExit={() => setView("2d")}/> : <FarmMap {...sceneProps}/>}
+        {view === "3d" ? <Farm3DLoader {...sceneProps} weather={sceneWeather} trackingRange={trackingRange} onExit={() => setView("2d")}/> : <FarmMap {...sceneProps}/>}
       </div>
       {rowView
         ? <RowPanel view={rowView} action={data.decision.action} previewAngle={previewAngle} isPreviewing={isPreviewing} onPreview={setIsPreviewing}/>

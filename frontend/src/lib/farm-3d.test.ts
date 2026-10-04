@@ -113,6 +113,15 @@ describe("scenic sky follows the supplied weather", () => {
 
 import { getCloudDriftX, getSunArcPosition, sceneSky } from "./farm-3d";
 import { getRowCloseUpPreset, rowCloseUp } from "./farm-3d";
+import { getTrackingTiltDeg } from "./farm-3d";
+describe("illustrative sun-tracking tilt", () => {
+  const range = { minDeg: 30, maxDeg: 60 };
+  it("starts at the steepest candidate angle while the sun is lowest", () => expect(getTrackingTiltDeg(0, range)).toBe(60));
+  it("is flattest when the sun is highest", () => expect(getTrackingTiltDeg(sceneSky.sunPeriodSeconds / 4, range)).toBeCloseTo(30));
+  it("never leaves the candidate range", () => { for (let second = 0; second <= sceneSky.sunPeriodSeconds; second++) { const tilt = getTrackingTiltDeg(second, range); expect(tilt).toBeGreaterThanOrEqual(30 - 1e-9); expect(tilt).toBeLessThanOrEqual(60 + 1e-9); } });
+  it("moves opposite to the sun's height", () => expect(getTrackingTiltDeg(20, range)).toBeLessThan(getTrackingTiltDeg(5, range)));
+  it("stays put when only one angle was evaluated", () => expect(getTrackingTiltDeg(17, { minDeg: 35, maxDeg: 35 })).toBe(35));
+});
 describe("row close-up camera", () => {
   let scene: FarmSceneLayout;
   beforeAll(async () => { scene = buildFarmSceneLayout((await loadFrontendData()).farm_status); });

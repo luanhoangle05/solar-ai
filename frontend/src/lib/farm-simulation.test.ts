@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadFrontendData } from "./frontend-data.server";
-import { getPreviewAngle, getPreviewFarm, getRowSimulationView, getSimulationConditions } from "./farm-simulation";
+import { getCandidateAngleRange, getPreviewAngle, getPreviewFarm, getRowSimulationView, getSimulationConditions } from "./farm-simulation";
 import type { FrontendData } from "../types/solar";
 let data: FrontendData;
 beforeAll(async () => { data = await loadFrontendData(); });
@@ -30,5 +30,7 @@ describe("solar farm simulation view", () => {
     expect(getRowSimulationView(data, other.row_id)).toMatchObject({ isTarget: false, recommendedAngle: null, gain: null, reasoning: [], currentAngle: other.angle_deg });
   });
   it("says so when the target has no optimization result", () => expect(getRowSimulationView({ ...data, optimization: null }, "row-001")).toMatchObject({ recommendedAngle: null, gain: null, reasoning: expect.arrayContaining(["No optimization result was supplied for this run."]) }));
+  it("takes the tracking range from the evaluated candidate angles", () => expect(getCandidateAngleRange(data)).toEqual({ minDeg: 30, maxDeg: 60 }));
+  it("offers no tracking range without candidates", () => expect(getCandidateAngleRange({ candidate_predictions: [] })).toBeNull());
   it("returns null for an unknown row", () => expect(getRowSimulationView(data, "row-999")).toBeNull());
 });

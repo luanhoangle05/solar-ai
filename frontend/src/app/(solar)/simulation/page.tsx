@@ -22,7 +22,7 @@ export default async function Page() {
     <div className="inspect-grid inspect-scenario">
       <ManagerDecision data={data} summary={view.agents}/>
       <AgentCommandCenter view={getCommandCenterView(data)}/>
-      <SolarFarmSimulation data={{farm_status:data.farm_status,metadata:data.metadata,optimization:data.optimization,decision:data.decision,safety:data.safety,current_weather:data.current_weather}}/>
+      <SolarFarmSimulation data={{farm_status:data.farm_status,metadata:data.metadata,optimization:data.optimization,decision:data.decision,safety:data.safety,current_weather:data.current_weather,candidate_predictions:data.candidate_predictions}}/>
       <OperationsPanel title="Scenario Input" icon={ListFilter} className="inspect-input"><div className="inspect-context"><PredictionFacts metadata={data.metadata}/><Facts rows={[["Current row angle",formatAngle(view.input.currentAngle)],["Selected model",view.input.model],["Candidate count",view.input.candidateCount],["Temperature",view.input.weather?.temperature ?? "Unavailable"],["Wind speed / gust",view.input.weather ? `${view.input.weather.wind} / ${view.input.weather.gust}` : "Unavailable"]]}/></div></OperationsPanel>
       <div className="inspect-wide"><CandidateEnergyProfile candidates={summary.candidates} current={summary.currentAngle} recommended={summary.recommendedAngle} rawAngles={summary.rawMaxima.map(point=>point.angle_deg)} horizon={view.input.horizon} scope={view.input.scope}/></div>
       <div className="inspect-wide"><OptimizationInsight summary={summary}/></div>

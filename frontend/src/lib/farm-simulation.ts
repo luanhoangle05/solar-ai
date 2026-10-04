@@ -2,7 +2,7 @@ import type { FarmStatus, FrontendData } from "../types/solar";
 import { formatZoneName, getRowById, getZoneById, getZoneRows } from "./farm";
 import { formatAngle, formatKwhEquivalent, formatMovementCost, formatRecordedTime, formatSignedKwh } from "./formatters";
 
-export type FarmSimulationData = Pick<FrontendData, "farm_status" | "metadata" | "optimization" | "decision" | "safety" | "current_weather">;
+export type FarmSimulationData = Pick<FrontendData, "farm_status" | "metadata" | "optimization" | "decision" | "safety" | "current_weather" | "candidate_predictions">;
 
 /** Header strip: the weather snapshot and interval supplied with this run. Null when weather is unavailable. */
 export function getSimulationConditions(data: FarmSimulationData) {
@@ -24,6 +24,11 @@ export function getSimulationConditions(data: FarmSimulationData) {
  * A HOLD decision means the backend chose not to move, so there is nothing to preview,
  * even when the optimizer recommended another angle.
  */
+export function getCandidateAngleRange(data: Pick<FarmSimulationData, "candidate_predictions">): { minDeg: number; maxDeg: number } | null {
+  // The span of candidate angles the backend evaluated, for the illustrative tracking demo. Null when none were supplied.
+  const angles = data.candidate_predictions.map(candidate => candidate.angle_deg);
+  return angles.length ? { minDeg: Math.min(...angles), maxDeg: Math.max(...angles) } : null;
+}
 export function getPreviewAngle(data: FarmSimulationData): number | null {
   return data.decision.action === "HOLD" ? null : data.decision.target_angle_deg;
 }

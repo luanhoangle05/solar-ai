@@ -35,6 +35,7 @@
 /* The daylight scene is bright, so overlay text gets its own dark chip. */
 .sfs-scene .f3-scene-caption { padding:7px 10px; border-radius:6px; background:#071a2dd9; border:1px solid #2c495c; }
 .sfs-scene .fx-map { grid-column:auto; grid-row:auto; }
+.sfs-scene .f3-tracking { position:absolute; top:15px; right:16px; max-width:min(62%,560px); padding:7px 11px; border-radius:6px; border:1px solid #f5ad2f; background:#1d1606e6; color:#ffd98a; font-size:10px; letter-spacing:.3px; line-height:1.5; pointer-events:none; }
 .sfs-row { display:flex; flex-direction:column; gap:12px; border:1px solid #1b4467; border-radius:11px; padding:14px; background:#071c33; min-width:0; }
 .sfs-row-head { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:start; }
 .sfs-dot { width:11px; height:11px; border-radius:50%; background:#8fb0c8; margin-top:6px; }

@@ -4,10 +4,10 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type C
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Cloud, Clouds, Environment, Html, OrbitControls, Sky as DreiSky } from "@react-three/drei";
 import { AdditiveBlending, CanvasTexture, Color, InstancedMesh, MeshBasicMaterial, Object3D, RepeatWrapping, SRGBColorSpace, Vector3, type DirectionalLight, type Group, type Mesh, type ShaderMaterial } from "three";
-import { Box, Crosshair, Eye, RotateCcw, ScanLine } from "lucide-react";
+import { Box, Crosshair, Eye, RotateCcw, ScanLine, Sun } from "lucide-react";
 import { getZoneColor } from "@/config/zones";
 import { rowStatePresentation } from "@/config/row-states";
-import { buildFarmSceneLayout, cameraDirections, getCameraPreset, getCloudDriftX, getInstanceRowId, getRowCloseUpPreset, getSceneEnvironment, getSceneRow, getSunArcPosition, sceneDimensions, sceneSky, type FarmSceneLayout, type SceneEnvironment, type SceneRow, type SceneZone, type Vec3 } from "@/lib/farm-3d";
+import { buildFarmSceneLayout, cameraDirections, degreesToRadians, getCameraPreset, getTrackingTiltDeg, type TrackingRange, getCloudDriftX, getInstanceRowId, getRowCloseUpPreset, getSceneEnvironment, getSceneRow, getSunArcPosition, sceneDimensions, sceneSky, type FarmSceneLayout, type SceneEnvironment, type SceneRow, type SceneZone, type Vec3 } from "@/lib/farm-3d";
 import { formatZoneName } from "@/lib/farm";
 import { formatAngle } from "@/lib/formatters";
 import { FarmPanel } from "@/components/farm/farm-panel";
@@ -31,9 +31,21 @@ function makePanelTexture() {
   return texture;
 }
 
-function PanelInstances({ zone, texture, scenic, onRow, onHover }: { zone: SceneZone; texture: CanvasTexture; scenic: boolean; onRow: (id: string) => void; onHover: (id: string | null) => void }) {
+function PanelInstances({ zone, texture, scenic, tracking, onRow, onHover }: { zone: SceneZone; texture: CanvasTexture; scenic: boolean; tracking: TrackingRange | null; onRow: (id: string) => void; onHover: (id: string | null) => void }) {
   const mesh = useRef<InstancedMesh>(null);
   const invalidate = useThree(state => state.invalidate);
+  const scratch = useMemo(() => new Object3D(), []);
+  // Tracking demo: READY rows follow the sun; stowed, moving and faulted rows keep their recorded tilt.
+  useFrame(({ clock }) => {
+    if (!tracking || !mesh.current) return;
+    const tilt = degreesToRadians(getTrackingTiltDeg(clock.elapsedTime, tracking));
+    for (let index = 0; index < zone.panels.length; index++) {
+      const panel = zone.panels[index];
+      scratch.position.set(panel.position[0], panel.position[1], panel.position[2]); scratch.rotation.set(panel.state === "READY" ? tilt : panel.tilt, 0, 0); scratch.updateMatrix();
+      mesh.current.setMatrixAt(index, scratch.matrix);
+    }
+    mesh.current.instanceMatrix.needsUpdate = true;
+  });
   useLayoutEffect(() => {
     if (!mesh.current) return;
     const object = new Object3D(); const color = new Color();
@@ -45,7 +57,7 @@ function PanelInstances({ zone, texture, scenic, onRow, onHover }: { zone: Scene
     mesh.current.instanceMatrix.needsUpdate = true;
     if (mesh.current.instanceColor) mesh.current.instanceColor.needsUpdate = true;
     mesh.current.computeBoundingSphere(); invalidate();
-  }, [zone, invalidate]);
+  }, [zone, invalidate, tracking]);
   function pick(event: ThreeEvent<MouseEvent>) {
     event.stopPropagation();
     if (event.delta > 5) return; // Camera drags must not become inspection clicks.
@@ -215,8 +227,8 @@ function SceneSky({ environment, layout }: { environment: SceneEnvironment; layo
   return <>
     <DreiSky ref={node => { sky.current = node; }} {...skyProps}/><Environment resolution={128}>{reflectedSky}</Environment>
     <fog attach="fog" args={["#e6e2d6", reach * 2.4, reach * 7]}/>
-    <ambientLight intensity={0.4}/><hemisphereLight args={["#cfe2ff", "#7a8055", environment.skyIntensity * 1.5]}/>
-    <directionalLight ref={sunLight} castShadow color="#ffdcae" position={[sunX * lightScale, sunY * lightScale, sunZ * lightScale]} intensity={environment.sunIntensity * 2.2}
+    <ambientLight intensity={0.2}/><hemisphereLight args={["#cfe2ff", "#7a8055", environment.skyIntensity * 0.95]}/>
+    <directionalLight ref={sunLight} castShadow color="#ffdcae" position={[sunX * lightScale, sunY * lightScale, sunZ * lightScale]} intensity={environment.sunIntensity * 3.4}
       shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.03} shadow-radius={3} shadow-camera-near={1} shadow-camera-far={reach * 8} shadow-camera-left={-extent} shadow-camera-right={extent} shadow-camera-top={extent} shadow-camera-bottom={-extent}/>
     <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.36, 0]}><planeGeometry args={[reach * 14, reach * 14]}/><meshStandardMaterial map={ground} roughness={1} envMapIntensity={0.5}/></mesh>
     <group ref={sun} position={environment.sunPosition}>
@@ -273,7 +285,7 @@ function ContextGuard({ onFailure }: { onFailure: () => void }) {
   }, [gl, onFailure]);
   return null;
 }
-function FarmGeometry({ layout, props, labels, onRow, onHover, portal, environment }: { layout: FarmSceneLayout; props: Farm3DProps; labels: boolean; onRow: (id: string) => void; onHover: (id: string | null) => void; portal: RefObject<HTMLDivElement>; environment: SceneEnvironment | null }) {
+function FarmGeometry({ layout, props, labels, tracking, onRow, onHover, portal, environment }: { layout: FarmSceneLayout; props: Farm3DProps; labels: boolean; tracking: TrackingRange | null; onRow: (id: string) => void; onHover: (id: string | null) => void; portal: RefObject<HTMLDivElement>; environment: SceneEnvironment | null }) {
   const scenic = environment !== null;
   const texture = useMemo(() => scenic ? makeModuleTexture() : makePanelTexture(), [scenic]);
   useEffect(() => () => texture.dispose(), [texture]);
@@ -288,7 +300,7 @@ function FarmGeometry({ layout, props, labels, onRow, onHover, portal, environme
       return <group key={zone.id}>
         <mesh receiveShadow position={zone.position}><boxGeometry args={[zone.width, 0.12, zone.depth]}/><meshStandardMaterial color={props.selectedZone === zone.id ? "#213c43" : "#182f35"}/></mesh>
         <Border center={[zone.position[0], 0.13, zone.position[2]]} width={zone.width} depth={zone.depth} color={color} thickness={props.selectedZone === zone.id ? 0.22 : 0.1}/>
-        <PanelInstances zone={zone} texture={texture} scenic={scenic} onRow={onRow} onHover={onHover}/>
+        <PanelInstances zone={zone} texture={texture} scenic={scenic} tracking={tracking} onRow={onRow} onHover={onHover}/>
         {labels && <Html portal={portal} position={[zone.position[0], 2.5, zone.position[2] - zone.depth / 2 + 0.5]} center zIndexRange={[15, 0]}><button className="f3-zone-label" style={{ "--zone-color": getZoneColor(zone.id) } as CSSProperties} type="button" aria-pressed={props.selectedZone === zone.id} onClick={() => props.onZone(zone.id)}><strong>{formatZoneName(zone.id)}</strong><span>{zone.rows.length} rows · {zone.panels.length} panels</span></button></Html>}
       </group>;
     })}
@@ -309,11 +321,14 @@ export default function Farm3DScene(props: Farm3DProps) {
   const [failed, setFailed] = useState(false);
   const [request, setRequest] = useState({ id: null as string | null, sequence: 0 });
   const hoverRow = getSceneRow(layout, hovered)?.row;
+  const [isTracking, setIsTracking] = useState(false);
+  const tracking = isTracking && environment !== null && props.trackingRange ? props.trackingRange : null;
   function focus(id: string | null) { setRequest(previous => ({ id, sequence: previous.sequence + 1 })); }
   // In the scenic view, clicking a row also flies the camera in for a close look at it.
   function pickRow(id: string) { props.onRow(id); if (environment !== null) focus(id); }
   return <FarmPanel title="3D Farm View" icon={Box} className="f3-panel" meta={<span className="fx-note">SCHEMATIC · {layout.panelCount.toLocaleString("en-US")} PANELS</span>}>
     <div className="f3-toolbar" aria-label="Camera and display controls">
+      {environment !== null && props.trackingRange && <button type="button" aria-pressed={isTracking} onClick={() => setIsTracking(value => !value)}><Sun size={14}/>{isTracking ? "Stop sun tracking" : "Sun-tracking demo"}</button>}
       <button type="button" onClick={() => focus(null)}><RotateCcw size={14}/>Overview</button>
       <button type="button" onClick={() => focus(props.targetId)} disabled={!getSceneRow(layout, props.targetId)}><Crosshair size={14}/>Focus target</button>
       <button type="button" onClick={() => focus(props.selectedRow)} disabled={!getSceneRow(layout, props.selectedRow)}><ScanLine size={14}/>Focus selected</button>
@@ -321,10 +336,11 @@ export default function Farm3DScene(props: Farm3DProps) {
     </div>
     {failed ? <SceneUnavailable onExit={props.onExit}/> : <div className="f3-canvas" data-hovered={!!hoverRow} role="group" aria-label="Schematic 3D farm. Drag to orbit, right-drag to pan, scroll or pinch to zoom. Use the row picker or table for keyboard inspection.">
       <Canvas onCreated={state => { if (environment !== null) state.gl.toneMappingExposure = 0.42; }} shadows={environment !== null} frameloop={environment !== null ? "always" : "demand"} dpr={[1, 1.5]} camera={{ fov: 42, near: 0.1, far: 2000 }} gl={{ antialias: true, powerPreference: "low-power" }} fallback={<SceneUnavailable onExit={props.onExit}/>}>
-        <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={request} scenic={environment !== null}/><FarmGeometry layout={layout} props={props} labels={labels} onRow={pickRow} onHover={setHovered} portal={labelPortal} environment={environment}/>
+        <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={request} scenic={environment !== null}/><FarmGeometry layout={layout} props={props} labels={labels} tracking={tracking} onRow={pickRow} onHover={setHovered} portal={labelPortal} environment={environment}/>
       </Canvas>
       <div className="f3-label-layer" ref={labelPortal}/>
       <div className="f3-scene-caption"><span>SCHEMATIC 3D VIEW</span><strong>{layout.zones.length} zones <i/> {layout.rows.length} rows</strong></div>
+      {tracking && <div className="f3-tracking" role="status">SUN-TRACKING DEMO · panels sweep the evaluated range {formatAngle(tracking.minDeg)}–{formatAngle(tracking.maxDeg)} with the sun · illustrative, recorded angles unchanged</div>}
       <div className="f3-hover" aria-live="off">{hoverRow ? <><strong>{hoverRow.row_id}</strong> {formatAngle(hoverRow.angle_deg)} · {hoverRow.current_state} · Recorded {hoverRow.action}</> : "Drag to orbit · Scroll / pinch to zoom · Right-drag to pan"}</div>
     </div>}
     <div className="f3-legend"><span className="f3-target-key">⊕ Control target</span><span>◇ Selected row</span>{Object.entries(rowStatePresentation).map(([state, presentation]) => <span key={state}><presentation.icon size={12} style={{ color: presentation.color }}/>{state}</span>)}</div>
