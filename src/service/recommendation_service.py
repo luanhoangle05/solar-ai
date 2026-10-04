@@ -13,6 +13,7 @@ from typing import Callable, Sequence
 from src.agents.manager_agent import DeterministicSafetyTools, ManagerAgent, RowStatusLookup
 from src.agents.modeling_agent import ModelingAgent
 from src.agents.optimization_agent import OptimizationAgent
+from src.agents.reasoning import Reasoner
 from src.agents.trace import Clock, StageError, utc_now_iso
 from src.common.agent_contracts import OrchestratorContract
 from src.common.config import ENERGY_SCOPE, PREDICTION_HORIZON_MINUTES, SCHEMA_VERSION, SimulationConfig
@@ -109,11 +110,18 @@ def _train_lstm_candidate(train_rows: Sequence, all_rows: Sequence) -> ModelCand
     return ModelCandidate(lstm.MODEL_NAME, lstm.IMPLEMENTATION, predictor=predictor)
 
 
-def build_agents(modeling_tools: EvaluatedModelingTools, config: SimulationConfig, *, row_status: RowStatusLookup | None = None, clock: Clock = utc_now_iso) -> DuyAgents:
+def build_agents(
+    modeling_tools: EvaluatedModelingTools, config: SimulationConfig, *,
+    row_status: RowStatusLookup | None = None, clock: Clock = utc_now_iso, reasoner: Reasoner | None = None,
+) -> DuyAgents:
+    """`reasoner` adds an LLM-worded explanation to each agent's log; without one, agents use templated text only.
+
+    The replay and the evaluation never pass a reasoner, so they make no LLM calls.
+    """
     return DuyAgents(
-        modeling=ModelingAgent(modeling_tools, config, clock=clock),
-        optimization=OptimizationAgent(DeterministicOptimizationTools(), config, clock=clock),
-        manager=ManagerAgent(DeterministicSafetyTools(), config, row_status=row_status, clock=clock),
+        modeling=ModelingAgent(modeling_tools, config, clock=clock, reasoner=reasoner),
+        optimization=OptimizationAgent(DeterministicOptimizationTools(), config, clock=clock, reasoner=reasoner),
+        manager=ManagerAgent(DeterministicSafetyTools(), config, row_status=row_status, clock=clock, reasoner=reasoner),
     )
 
 
