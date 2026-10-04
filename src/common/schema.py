@@ -292,7 +292,8 @@ def _weather(value: dict) -> None:
     for key in ("precipitation_mm", "wind_speed_kmh", "wind_gust_kmh", "ghi_wm2", "dni_wm2", "dhi_wm2"):
         _require(value[key] >= 0, f"{key} cannot be negative")
     _require(0 <= value["cloud_cover_pct"] <= 100, "Cloud cover outside [0, 100]")
-    _require(value["wind_gust_kmh"] >= value["wind_speed_kmh"], "Gust below sustained wind")
+    # Instant wind and preceding-hour gust need not be ordered. Each still
+    # requires a finite, nonnegative value; diagnostics belong to the pipeline.
     if "sun_elevation_deg" in value:
         _require(-90 <= value["sun_elevation_deg"] <= 90, "Invalid sun elevation")
         _require(0 <= value["sun_azimuth_deg"] < 360, "Invalid sun azimuth")

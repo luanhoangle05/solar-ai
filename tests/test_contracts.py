@@ -83,7 +83,7 @@ class WeatherContractTests(unittest.TestCase):
                 validate_weather_row(row)
 
     def test_invalid_numbers_and_ranges_rejected(self):
-        for key, val in (("ghi_wm2", float("nan")), ("temperature_c", float("inf")), ("cloud_cover_pct", 101), ("actual_kwh", -1), ("sun_azimuth_deg", 360), ("panel_angle_deg", -5), ("wind_gust_kmh", 1)):
+        for key, val in (("ghi_wm2", float("nan")), ("temperature_c", float("inf")), ("cloud_cover_pct", 101), ("actual_kwh", -1), ("sun_azimuth_deg", 360), ("panel_angle_deg", -5), ("wind_gust_kmh", -1)):
             with self.subTest(key=key, value=val), self.assertRaises(ContractError):
                 validate_weather_row(dict(self.rows[-1], **{key: val}))
 
@@ -91,6 +91,19 @@ class WeatherContractTests(unittest.TestCase):
         row = dict(self.rows[-1], timestamp="2026-06-21T19:00:00")
         with self.assertRaises(ContractError):
             validate_weather_row(row)
+
+    def test_individually_valid_wind_and_gust_need_not_be_ordered(self):
+        validate_weather_row(dict(self.rows[-1], wind_speed_kmh=15, wind_gust_kmh=8))
+        payload = read_json('sample_full_frontend_data.json')
+        payload['current_weather'].update(wind_speed_kmh=15, wind_gust_kmh=8)
+        payload['data_agent']['issues'].append('Wind fields use different temporal semantics.')
+        validate_frontend_data(payload)
+
+    def test_invalid_wind_and_gust_still_fail_shared_schema(self):
+        for field in ('wind_speed_kmh', 'wind_gust_kmh'):
+            for value in (-1, None, float('nan'), float('inf')):
+                with self.subTest(field=field, value=value), self.assertRaises(ContractError):
+                    validate_weather_row(dict(self.rows[-1], **{field:value}))
 
 
 class PayloadContractTests(unittest.TestCase):
