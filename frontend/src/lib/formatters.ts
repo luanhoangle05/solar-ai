@@ -59,3 +59,8 @@ export function formatRecordedTime(value: string, date = true): string {
 export function formatMovementCost(value: number): string {
   return value.toFixed(2) + " kWh eq.";
 }
+
+/** Candidate inspection keeps close predictions distinct without floating-point noise. */
+export function formatCandidateEnergy(value: number | null): string {
+  return formatKwh(value, 3);
+}
