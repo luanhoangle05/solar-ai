@@ -49,8 +49,7 @@ COMMON_ASSUMPTIONS = (
     "Control commands are simulation-only; no hardware is moved.",
 )
 RECORDED_WEATHER_ISSUE = "Recorded dataset hour served as the current forecast; forecast age is assumed to be zero, not measured."
-SIMULATED_FARM_ASSUMPTION = "SIMULATED FARM SNAPSHOT: no row telemetry exists yet, so every row is shown READY at an assumed angle."
-ZONE_RUNS_ASSUMPTION = "ZONE RUNS: each zone is given an assumed starting angle and the agents are run once per zone, with the zone's first row as the control row. This payload is one of those runs; the farm snapshot shows the action from every zone's run."
+SIMULATED_FARM_ASSUMPTION = "SIMULATED FARM SNAPSHOT: no row telemetry exists yet, so every row is shown READY at the control row's current angle."
 MATCHING_ROWS_ASSUMPTION = "The decision is computed for the control row only. Rows in the same state and at the same angle are shown with the same action because the models have no per-row inputs; it was not computed for them separately."
 NO_HISTORY_ASSUMPTION = "No decision history is stored yet; the history list is empty rather than filled with examples."
 
@@ -167,15 +166,8 @@ class RecordedWeatherDataAgent:
 
 def simulated_farm_status(angle_deg: float) -> FarmStatus:
     """SIMULATED farm snapshot: every row READY at `angle_deg`, in the contract's four zones. Not telemetry."""
-    return simulated_zone_farm([angle_deg] * len(ZONE_ROW_COUNTS))
-
-
-def simulated_zone_farm(zone_angles: Sequence[float]) -> FarmStatus:
-    """SIMULATED farm snapshot: every row READY, each zone at its own assumed angle. Not telemetry."""
-    if len(zone_angles) != len(ZONE_ROW_COUNTS):
-        raise ValueError(f"Expected one angle for each of the {len(ZONE_ROW_COUNTS)} zones, got {len(zone_angles)}")
     zones, rows, first = [], [], 1
-    for zone_number, (row_count, angle_deg) in enumerate(zip(ZONE_ROW_COUNTS, zone_angles), start=1):
+    for zone_number, row_count in enumerate(ZONE_ROW_COUNTS, start=1):
         zone_id = f"zone-{zone_number:02d}"
         row_ids = [f"row-{number:03d}" for number in range(first, first + row_count)]
         zones.append({"zone_id": zone_id, "row_ids": row_ids, "panel_count": row_count * PANELS_PER_ROW})
@@ -197,16 +189,14 @@ def run_recommendation(
     extra_assumptions: Sequence[str] = (),
     reasoner: Reasoner | None = None,
     clock: Clock = utc_now_iso,
-    farm: FarmStatus | None = None,
 ) -> FrontendData:
     """One full run, Data -> Modeling -> Optimization -> Manager, with the given Data Agent.
 
     `source` is the dataset the models were trained on; it labels the payload.
-    The farm snapshot is simulated and the payload's assumptions say so; `farm`
-    supplies one, otherwise every row is placed at `current_angle_deg`.
+    The farm snapshot is simulated and the payload's assumptions say so.
     `reasoner` adds LLM-worded explanations to the agent log; it cannot change any result.
     """
-    farm = farm or simulated_farm_status(current_angle_deg)
+    farm = simulated_farm_status(current_angle_deg)
     row_states = {row["row_id"]: {"angle_deg": row["angle_deg"], "current_state": row["current_state"]} for row in farm["rows"]}
     agents = build_agents(modeling_tools, config, row_status=row_states.__getitem__, clock=clock, reasoner=reasoner)
     orchestrator = Orchestrator(data_agent, agents.modeling, agents.optimization, agents.manager, farm_status=lambda: farm)
@@ -224,61 +214,6 @@ def run_recommendation(
     return payload
 
 
-def recommend_for_zones(
-    source: DatasetSource,
-    weather: WeatherFeatures,
-    modeling_tools: EvaluatedModelingTools,
-    config: SimulationConfig,
-    *,
-    zone_angles: Sequence[float],
-    run_id: str,
-    reasoner: Reasoner | None = None,
-    clock: Clock = utc_now_iso,
-) -> list[FrontendData]:
-    """One full agent run per zone for one recorded hour, each zone starting at its own assumed angle.
-
-    Every payload is a complete, separately computed run whose control row is
-    the zone's first row. All of them carry the same farm snapshot, in which
-    each row shows the action decided by the run for its zone.
-    """
-    farm = simulated_zone_farm(zone_angles)
-    payloads = [
-        run_recommendation(
-            source, RecordedWeatherDataAgent({**weather, "panel_angle_deg": angle}, source, clock=clock), modeling_tools, config,
-            interval_start=weather["timestamp"], current_angle_deg=angle, control_target_id=zone["row_ids"][0],
-            run_id=f"{run_id}-{zone['zone_id']}", extra_assumptions=(ZONE_RUNS_ASSUMPTION,), reasoner=reasoner, clock=clock, farm=farm,
-        )
-        for zone, angle in zip(farm["zones"], zone_angles)
-    ]
-    return share_row_actions(payloads)
-
-
-def share_row_actions(payloads: Sequence[FrontendData]) -> list[FrontendData]:
-    """Give every payload the same farm snapshot, each row showing the action its own run marked it with.
-
-    Returns new payloads. A row no run covers keeps the action it had.
-    """
-    decided: dict[str, str] = {}
-    for payload in payloads:
-        target = _control_row(payload)
-        decided.update({row["row_id"]: target["action"] for row in payload["farm_status"]["rows"] if _matches(row, target)})
-    shared = []
-    for payload in payloads:
-        rows = [{**row, "action": decided.get(row["row_id"], row["action"])} for row in payload["farm_status"]["rows"]]
-        merged = {**payload, "farm_status": {**payload["farm_status"], "rows": rows}}
-        validate_frontend_data(merged)
-        shared.append(merged)
-    return shared
-
-
-def _control_row(payload: FrontendData) -> dict:
-    return next(row for row in payload["farm_status"]["rows"] if row["row_id"] == payload["metadata"]["control_target_id"])
-
-
-def _matches(row: dict, target: dict) -> bool:
-    return (row["current_state"], row["angle_deg"]) == (target["current_state"], target["angle_deg"])
-
-
 def mark_matching_rows(payload: FrontendData) -> FrontendData:
     """Show the control row's action on every row in the same state and at the same angle.
 
@@ -286,8 +221,12 @@ def mark_matching_rows(payload: FrontendData) -> FrontendData:
     other rows. With no per-row model inputs they would receive the same answer,
     which the payload's assumptions state. Rows that differ are left as they are.
     """
-    target = _control_row(payload)
-    marked = [{**row, "action": target["action"]} if _matches(row, target) else row for row in payload["farm_status"]["rows"]]
+    rows = payload["farm_status"]["rows"]
+    target = next(row for row in rows if row["row_id"] == payload["metadata"]["control_target_id"])
+    marked = [
+        {**row, "action": target["action"]} if (row["current_state"], row["angle_deg"]) == (target["current_state"], target["angle_deg"]) else row
+        for row in rows
+    ]
     return {**payload, "farm_status": {**payload["farm_status"], "rows": marked}}
 
 
