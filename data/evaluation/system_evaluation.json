@@ -1,0 +1,305 @@
+{
+  "metadata": {
+    "schema_version": "0.1.0",
+    "dataset_kind": "LIVE",
+    "label_source": "physics-derived",
+    "energy_scope": "row",
+    "prediction_horizon_minutes": 60,
+    "interval_start": "2025-01-15T00:00:00Z",
+    "control_target_id": "row-001",
+    "config_id": "prototype-row-hour-v1",
+    "assumptions": [
+      "Weather comes from the data pipeline; energy labels are physics-simulated for a reference row, not measured production. Model accuracy means agreement with that simulation.",
+      "kWh is for one 20-panel row over the hour starting at interval_start.",
+      "PROTOTYPE SIMULATION ASSUMPTIONS: movement and safety coefficients are not hardware-calibrated.",
+      "Model comparison metrics are computed on the chronological validation window; the test window is held out.",
+      "Control commands are simulation-only; no hardware is moved."
+    ]
+  },
+  "windows": {
+    "train": {
+      "rows": 4704,
+      "hours": 672,
+      "first": "2023-01-15T00:00:00Z",
+      "last": "2023-10-21T23:00:00Z"
+    },
+    "validation": {
+      "rows": 168,
+      "hours": 24,
+      "first": "2024-01-15T00:00:00Z",
+      "last": "2024-01-15T23:00:00Z"
+    },
+    "test": {
+      "rows": 168,
+      "hours": 24,
+      "first": "2025-01-15T00:00:00Z",
+      "last": "2025-01-15T23:00:00Z"
+    }
+  },
+  "validation_metrics": [
+    {
+      "model": "linear_regression",
+      "implementation": "linear_regression",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    },
+    {
+      "model": "random_forest",
+      "implementation": "random_forest",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    },
+    {
+      "model": "boosting",
+      "implementation": "xgboost",
+      "status": "VALIDATED",
+      "mae": 0.10587366507065206,
+      "rmse": 0.23065626340857687,
+      "r2": 0.990926760839135
+    },
+    {
+      "model": "lstm",
+      "implementation": "pytorch",
+      "status": "VALIDATED",
+      "mae": 0.11598889232489855,
+      "rmse": 0.14767508500727827,
+      "r2": 0.9962808275758109
+    }
+  ],
+  "unavailable_reasons": {
+    "linear_regression": "adapter not delivered yet",
+    "random_forest": "adapter not delivered yet"
+  },
+  "selected_model": "lstm",
+  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.1477 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
+  "test_metrics": [
+    {
+      "model": "linear_regression",
+      "implementation": "linear_regression",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    },
+    {
+      "model": "random_forest",
+      "implementation": "random_forest",
+      "status": "UNAVAILABLE",
+      "mae": null,
+      "rmse": null,
+      "r2": null
+    },
+    {
+      "model": "boosting",
+      "implementation": "xgboost",
+      "status": "VALIDATED",
+      "mae": 0.04916621698090541,
+      "rmse": 0.10478743475912208,
+      "r2": 0.997194335370263
+    },
+    {
+      "model": "lstm",
+      "implementation": "pytorch",
+      "status": "VALIDATED",
+      "mae": 0.02291165722351892,
+      "rmse": 0.03541138472105745,
+      "r2": 0.9996795921417501
+    }
+  ],
+  "detailed_metrics": {
+    "boosting": {
+      "validation": {
+        "all_hours": {
+          "samples": 168,
+          "mae": 0.10587366507065206,
+          "rmse": 0.23065626340857687,
+          "r2": 0.990926760839135,
+          "bias_kwh": -0.10373979546842077,
+          "median_abs_error_kwh": 0.00022944500960875303,
+          "p95_abs_error_kwh": 0.6196523822861995,
+          "max_abs_error_kwh": 1.0338857387553304,
+          "wape_pct": 7.164913129922496,
+          "nrmse_pct": 15.60947275313584,
+          "total_energy_error_pct": -7.020505261163374
+        },
+        "daylight_hours": {
+          "samples": 56,
+          "mae": 0.3173464900479455,
+          "rmse": 0.3995082941618639,
+          "r2": 0.9644522489442215,
+          "bias_kwh": -0.311493891569273,
+          "median_abs_error_kwh": 0.2149268432718059,
+          "p95_abs_error_kwh": 0.832100933150274,
+          "max_abs_error_kwh": 1.0338857387553304,
+          "wape_pct": 7.158720826253971,
+          "nrmse_pct": 9.01213164590426,
+          "total_energy_error_pct": -7.026697564831899
+        }
+      },
+      "test": {
+        "all_hours": {
+          "samples": 168,
+          "mae": 0.04916621698090541,
+          "rmse": 0.10478743475912208,
+          "r2": 0.997194335370263,
+          "bias_kwh": -0.02105727783553624,
+          "median_abs_error_kwh": 0.0007107909768819809,
+          "p95_abs_error_kwh": 0.233333151906022,
+          "max_abs_error_kwh": 0.4888289787326059,
+          "wape_pct": 4.062082735428844,
+          "nrmse_pct": 8.6574736834078,
+          "total_energy_error_pct": -1.7397393983775455
+        },
+        "daylight_hours": {
+          "samples": 56,
+          "mae": 0.14662676031454663,
+          "rmse": 0.1814950609661467,
+          "r2": 0.9888375272699073,
+          "bias_kwh": -0.06404372413477835,
+          "median_abs_error_kwh": 0.1323206028214896,
+          "p95_abs_error_kwh": 0.40071536925895623,
+          "max_abs_error_kwh": 0.4888289787326059,
+          "wape_pct": 4.038071045523656,
+          "nrmse_pct": 4.998336927179855,
+          "total_energy_error_pct": -1.7637510882827334
+        }
+      }
+    },
+    "lstm": {
+      "validation": {
+        "all_hours": {
+          "samples": 168,
+          "mae": 0.11598889232489855,
+          "rmse": 0.14767508500727827,
+          "r2": 0.9962808275758109,
+          "bias_kwh": 0.009952857260452742,
+          "median_abs_error_kwh": 0.08322884142398834,
+          "p95_abs_error_kwh": 0.3379304844206974,
+          "max_abs_error_kwh": 0.41713752079592403,
+          "wape_pct": 7.8494528076387216,
+          "nrmse_pct": 9.993789813784064,
+          "total_energy_error_pct": 0.6735514220469694
+        },
+        "daylight_hours": {
+          "samples": 56,
+          "mae": 0.19224485816263717,
+          "rmse": 0.2264061616398306,
+          "r2": 0.9885833939849274,
+          "bias_kwh": -0.12586324703070023,
+          "median_abs_error_kwh": 0.17061554815531133,
+          "p95_abs_error_kwh": 0.3976228450785726,
+          "max_abs_error_kwh": 0.41713752079592403,
+          "wape_pct": 4.33667084095112,
+          "nrmse_pct": 5.107283538186939,
+          "total_energy_error_pct": -2.8392305446406327
+        }
+      },
+      "test": {
+        "all_hours": {
+          "samples": 168,
+          "mae": 0.02291165722351892,
+          "rmse": 0.03541138472105745,
+          "r2": 0.9996795921417501,
+          "bias_kwh": 0.002383007305292496,
+          "median_abs_error_kwh": 0.014882542166216872,
+          "p95_abs_error_kwh": 0.07817252655365081,
+          "max_abs_error_kwh": 0.13115517704997837,
+          "wape_pct": 1.8929470877099381,
+          "nrmse_pct": 2.9256669181788104,
+          "total_energy_error_pct": 0.19688260410575936
+        },
+        "daylight_hours": {
+          "samples": 56,
+          "mae": 0.04251985970071964,
+          "rmse": 0.052817109014598844,
+          "r2": 0.9990546773996039,
+          "bias_kwh": -0.019066090053959626,
+          "median_abs_error_kwh": 0.035155586546425255,
+          "p95_abs_error_kwh": 0.09559252638634153,
+          "max_abs_error_kwh": 0.13115517704997837,
+          "wape_pct": 1.170988255819564,
+          "nrmse_pct": 1.4545723997624125,
+          "total_energy_error_pct": -0.5250762277846145
+        }
+      }
+    }
+  },
+  "detailed_metrics_note": "Errors are predicted minus actual, in kWh per row per hour. bias > 0 means over-prediction. WAPE is total absolute error over total actual energy; nRMSE is RMSE over mean actual energy; total_energy_error is the summed prediction against the summed actual. Daylight hours exclude night rows, whose zero energy is trivially predicted. Model selection uses validation RMSE only.",
+  "lstm_without_history": {
+    "validation": {
+      "mae": 0.11541781136638589,
+      "rmse": 0.1332108586117669,
+      "r2": 0.9969737060531615
+    },
+    "test": {
+      "mae": 0.044874787834627415,
+      "rmse": 0.05905778101628885,
+      "r2": 0.9991088073626269
+    }
+  },
+  "decision_quality_source": "dataset energy labels for the same hour and angle (physics-derived)",
+  "decision_quality": {
+    "boosting": {
+      "hours": 8,
+      "best_angle_match_rate": 0.875,
+      "mean_regret_kwh": 0.002026801758530261,
+      "max_regret_kwh": 0.01621441406824209,
+      "total_regret_kwh": 0.01621441406824209,
+      "mean_curve_error_kwh": 0.037720088358961866
+    },
+    "lstm": {
+      "hours": 8,
+      "best_angle_match_rate": 1.0,
+      "mean_regret_kwh": 0.0,
+      "max_regret_kwh": 0.0,
+      "total_regret_kwh": 0.0,
+      "mean_curve_error_kwh": 0.0070014569848204046
+    }
+  },
+  "decision_quality_note": "Each model's best candidate angle is compared with the true best angle according to the stated energy source, on test-window hours where the true energy depends on the angle. Regret is true kWh lost per hour.",
+  "replay_baseline": "row fixed at 35 deg for every test hour",
+  "replay_notes": [
+    "A 'model-predicted' replay grades the selected model's choices with that model's own predictions, so its gain is optimistic.",
+    "The baseline row never stows; hours stowed for safety lower optimized energy by design.",
+    "Each hour is decided on its own one-hour horizon; a move is not credited for energy gained in later hours.",
+    "error_hours above zero means some decisions were fallbacks after a failed stage."
+  ],
+  "system_evaluation": [
+    {
+      "hours": 24,
+      "energy_source": "dataset energy labels for the same hour and angle (physics-derived)",
+      "baseline_kwh": 26.73706190475303,
+      "optimized_kwh": 32.014078346104576,
+      "energy_gain_kwh": 5.277016441351545,
+      "movement_cost_kwh_equivalent": 0.07500000000000001,
+      "net_benefit_kwh_equivalent": 5.202016441351545,
+      "rotate_count": 1,
+      "hold_count": 23,
+      "stow_count": 0,
+      "unnecessary_moves_avoided": 7,
+      "severe_safety_events": 0,
+      "unsafe_rotations": 0,
+      "error_hours": 0
+    },
+    {
+      "hours": 24,
+      "energy_source": "model-predicted (lstm)",
+      "baseline_kwh": 26.743561414070427,
+      "optimized_kwh": 31.858839181251824,
+      "energy_gain_kwh": 5.1152777671813965,
+      "movement_cost_kwh_equivalent": 0.07500000000000001,
+      "net_benefit_kwh_equivalent": 5.040277767181396,
+      "rotate_count": 1,
+      "hold_count": 23,
+      "stow_count": 0,
+      "unnecessary_moves_avoided": 7,
+      "severe_safety_events": 0,
+      "unsafe_rotations": 0,
+      "error_hours": 0
+    }
+  ]
+}
