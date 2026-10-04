@@ -119,7 +119,7 @@ describe("illustrative sun-tracking tilt", () => {
   it("starts at the steepest candidate angle while the sun is lowest", () => expect(getTrackingTiltDeg(0, range)).toBe(60));
   it("is flattest when the sun is highest", () => expect(getTrackingTiltDeg(sceneSky.sunPeriodSeconds / 4, range)).toBeCloseTo(30));
   it("never leaves the candidate range", () => { for (let second = 0; second <= sceneSky.sunPeriodSeconds; second++) { const tilt = getTrackingTiltDeg(second, range); expect(tilt).toBeGreaterThanOrEqual(30 - 1e-9); expect(tilt).toBeLessThanOrEqual(60 + 1e-9); } });
-  it("moves opposite to the sun's height", () => expect(getTrackingTiltDeg(20, range)).toBeLessThan(getTrackingTiltDeg(5, range)));
+  it("moves opposite to the sun's height", () => expect(getTrackingTiltDeg(sceneSky.sunPeriodSeconds / 6, range)).toBeLessThan(getTrackingTiltDeg(sceneSky.sunPeriodSeconds / 24, range)));
   it("stays put when only one angle was evaluated", () => expect(getTrackingTiltDeg(17, { minDeg: 35, maxDeg: 35 })).toBe(35));
 });
 describe("row close-up camera", () => {
@@ -140,7 +140,7 @@ describe("illustrative sun and cloud motion", () => {
   it("keeps the sun at a fixed distance, ahead of the scenic camera", () => { for (const second of [0, 17, 30, 60, 95]) { const [x, y, z] = getSunArcPosition(second); expect(Math.hypot(x, y, z)).toBeCloseTo(sceneSky.sunDistance); expect(z).toBeLessThan(0); } });
   it("keeps the sun above the horizon for the whole arc", () => expect(Math.min(...Array.from({ length: 120 }, (_, second) => getSunArcPosition(second)[1]))).toBeGreaterThanOrEqual(environment.sunPosition[1] - 1e-9));
   it("drifts clouds faster in stronger wind", () => expect(getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850, windSpeedKmh: 40 }, bounds).cloudDrift).toBeGreaterThan(environment.cloudDrift));
-  it("still drifts gently when no wind speed is supplied", () => expect(getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850 }, bounds).cloudDrift).toBe(0.25));
+  it("still drifts gently when no wind speed is supplied", () => expect(getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850 }, bounds).cloudDrift).toBe(0.8));
   it("moves a cloud along x over time", () => expect(getCloudDriftX(0, environment, 10)).toBeCloseTo(10 * environment.cloudDrift));
   it("wraps a cloud back inside the drift span", () => { for (const seconds of [0, 50, 500, 5000]) { const x = getCloudDriftX(12, environment, seconds); expect(Math.abs(x)).toBeLessThanOrEqual(environment.driftSpan); } });
 });

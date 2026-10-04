@@ -80,7 +80,7 @@ export function getRowCloseUpPreset(layout: FarmSceneLayout, rowId: string | nul
 /** Weather values the scenic 3D view reacts to. Both come straight from the payload's current_weather. */
 export type SceneWeather = { cloudCoverPct: number; ghiWm2: number; windSpeedKmh?: number };
 export type SceneCloud = { position: Vec3; scale: number };
-export const sceneSky = { maxClouds: 48, cloudHeight: 16, fullSunGhi: 1000, sunPeriodSeconds: 120, maxWindKmh: 120, sunDistance: 400, sunSweepDeg: 26, sunMinElevationDeg: 5, sunLiftDeg: 5 } as const;
+export const sceneSky = { maxClouds: 48, cloudHeight: 16, fullSunGhi: 1000, sunPeriodSeconds: 40, maxWindKmh: 120, sunDistance: 400, sunSweepDeg: 26, sunMinElevationDeg: 5, sunLiftDeg: 5 } as const;
 const fraction = (value: number) => value - Math.floor(value);
 /**
  * Presentation of the supplied weather. Cloud count follows cloud cover and light strength follows GHI.
@@ -99,7 +99,7 @@ export function getSceneEnvironment(weather: SceneWeather, bounds: FarmSceneLayo
   }));
   const sunPosition = getSunArcPosition(0);
   // Clouds drift faster in stronger supplied wind; the payload has no wind direction, so the heading is illustrative.
-  const cloudDrift = 0.25 + 0.03 * Math.min(sceneSky.maxWindKmh, Math.max(0, weather.windSpeedKmh ?? 0));
+  const cloudDrift = 0.8 + 0.09 * Math.min(sceneSky.maxWindKmh, Math.max(0, weather.windSpeedKmh ?? 0));
   return { cover, cloudCount, clouds, sunPosition, cloudDrift, driftSpan: spanX, brightness, sunIntensity: 0.8 + 3 * brightness, skyIntensity: 0.6 + 0.8 * brightness * (1 - 0.5 * cover), shadowExtent: Math.max(bounds.width, bounds.depth) / 2 + 24 };
 }
 export type SceneEnvironment = ReturnType<typeof getSceneEnvironment>;
