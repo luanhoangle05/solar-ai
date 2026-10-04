@@ -15,14 +15,11 @@ export function OptimizationContext({ data, summary }: { data: FrontendData; sum
     ["Energy scope", data.metadata.energy_scope + (summary.target ? " · " + summary.target.panel_count + " panels" : "")],
     ["Candidate angles", summary.candidates.length],
     ["Selected model", formatModelName(summary.model?.model ?? null)],
-    ["Implementation", summary.model?.implementation || "Unavailable"],
-    ["Data source", data.data_agent.source],
   ];
   return <OptimizationPanel title="Optimization Context" icon={SlidersHorizontal} className="opt-context">
-    <p className="opt-eyebrow">Loaded run · read-only</p>
     <dl className="opt-facts">{rows.map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     <div className="opt-data-health"><span>Data health</span><Badge variant={dataStatusVariants[data.data_agent.status]}>{data.data_agent.status}</Badge></div>
-    <p className="opt-note">Age at recorded run: {data.data_agent.forecast_age_minutes === null ? "Unknown" : data.data_agent.forecast_age_minutes + " min"} · Cache {data.data_agent.used_cache ? "used" : "not used"}</p>
+    <p className="opt-note">Forecast age: {data.data_agent.forecast_age_minutes === null ? "Unknown" : data.data_agent.forecast_age_minutes + " min"}</p>
     {data.data_agent.issues.length > 0 && <ul className="opt-issues" data-status={data.data_agent.status}>{data.data_agent.issues.map((issue,i) => <li key={i}>{issue}</li>)}</ul>}
   </OptimizationPanel>;
 }

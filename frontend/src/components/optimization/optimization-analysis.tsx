@@ -5,17 +5,19 @@ import { OptimizationPanel } from "./optimization-panel";
 
 export function OptimizationInsight({ summary }: { summary: OptimizationSummary }) {
   const result = summary.optimization;
-  return <OptimizationPanel title="Why This Angle?" icon={Lightbulb} className="opt-insight">
-    <div className="opt-insight-comparison"><div><span>Highest raw prediction{summary.rawMaxima.length > 1 ? "s (tied)" : ""}</span><strong>{summary.rawMaxima.length ? summary.rawMaxima.map(point => formatAngle(point.angle_deg)).join(" / ") : "Unavailable"}</strong><small>{formatCandidateEnergy(summary.rawMaxima[0]?.predicted_kwh ?? null)}</small></div><ArrowRight size={22} aria-hidden="true"/><div><span>Backend recommendation</span><strong>{formatAngle(summary.recommendedAngle)}</strong><small>{formatCandidateEnergy(result?.predicted_kwh ?? null)}</small></div><div><span>Movement cost</span><strong className="opt-insight-small">{result ? formatMovementCost(result.movement_cost_kwh_equivalent) : "Unavailable"}</strong><span>Net benefit</span><b>{formatKwhEquivalent(result?.net_benefit_kwh_equivalent ?? null)}</b></div></div>
+  return <OptimizationPanel title="Why this recommendation" icon={Lightbulb} className="opt-insight">
+    <div className="opt-insight-comparison"><div><span>Recommended operating angle</span><strong>{formatAngle(summary.recommendedAngle)}</strong><small>{formatCandidateEnergy(result?.predicted_kwh ?? null)}</small></div><ArrowRight size={22} aria-hidden="true"/><div><span>Highest raw prediction{summary.rawMaxima.length > 1 ? "s (tied)" : ""}</span><strong>{summary.rawMaxima.length ? summary.rawMaxima.map(point => formatAngle(point.angle_deg)).join(" / ") : "Unavailable"}</strong><small>{formatCandidateEnergy(summary.rawMaxima[0]?.predicted_kwh ?? null)}</small></div></div>
     <p className="opt-insight-text">{summary.insight}</p>
-    <p className="opt-note">Candidate costs and net-benefit scores are not provided. The frontend does not rank candidates by net value.</p>
+    {!summary.recommendationIsRawMax && summary.rawMaxima.length > 0 && <p className="opt-why-not"><strong>Why not {summary.rawMaxima.map(point => formatAngle(point.angle_deg)).join(" / ")}?</strong> The highest raw prediction is shown for comparison. The recorded recommendation also accounts for the supplied movement cost and overall net benefit.</p>}
+    <p className="opt-note">Candidate-level costs are not provided, so the chart and table compare energy predictions only.</p>
   </OptimizationPanel>;
 }
 
 export function CurrentVsRecommended({ summary }: { summary: OptimizationSummary }) {
   const comparison = summary.comparison;
+  const change = comparison ? comparison.recommendedAngle - comparison.currentAngle : null;
   return <OptimizationPanel title="Current vs Recommended" icon={GitCompareArrows} className="opt-comparison">
-    {comparison ? <><table className="opt-table"><caption className="sr-only">Current and backend-recommended configuration</caption><thead><tr><th scope="col">Parameter</th><th scope="col">Current</th><th scope="col">Recommended</th></tr></thead><tbody><tr><th scope="row">Angle</th><td>{formatAngle(comparison.currentAngle)}</td><td>{formatAngle(comparison.recommendedAngle)}</td></tr><tr><th scope="row">Energy</th><td>{formatKwh(comparison.baseline)}</td><td>{formatKwh(comparison.predicted)}</td></tr><tr><th scope="row">Gain</th><td>—</td><td>{formatSignedKwh(comparison.gain)}</td></tr></tbody></table><p className="opt-note">Recommendation is separate from the final Manager decision.</p></> : <p className="opt-empty">No optimization comparison available.</p>}
+    {comparison ? <table className="opt-table"><caption className="sr-only">Current and recommended operating configuration</caption><thead><tr><th scope="col">Parameter</th><th scope="col">Current</th><th scope="col">Recommended</th></tr></thead><tbody><tr><th scope="row">Angle</th><td>{formatAngle(comparison.currentAngle)}</td><td>{formatAngle(comparison.recommendedAngle)}</td></tr><tr><th scope="row">Energy</th><td>{formatKwh(comparison.baseline)}</td><td>{formatKwh(comparison.predicted)}</td></tr><tr><th scope="row">Change</th><td>—</td><td>{change === null ? "Unavailable" : `${change > 0 ? "+" : ""}${change}°`}</td></tr><tr><th scope="row">Action</th><td>—</td><td>{summary.decision.action}</td></tr></tbody></table> : <p className="opt-empty">No optimization comparison available.</p>}
   </OptimizationPanel>;
 }
 

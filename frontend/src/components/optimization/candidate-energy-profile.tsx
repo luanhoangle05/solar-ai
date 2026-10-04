@@ -13,10 +13,10 @@ export function CandidateEnergyProfile({ candidates, current, recommended, rawAn
   const gradientId = useId();
   const descriptionId = useId();
   const maxima = rawAngles.length ? rawAngles.map(formatAngle).join(", ") : "Unavailable";
-  return <OptimizationPanel title="Candidate Energy Profile" icon={ChartNoAxesCombined} className="opt-profile" meta={<span className="opt-note">{scope} / {horizon} min</span>}>
+  return <OptimizationPanel title="Candidate Energy" icon={ChartNoAxesCombined} className="opt-profile" meta={<span className="opt-note">{scope} / {horizon} min</span>}>
     <p className="opt-note">Predicted energy for each backend-provided candidate angle.</p>
     <div className="opt-marker-key"><span>○ Current <strong>{formatAngle(current)}</strong></span><span>● Recommended <strong>{formatAngle(recommended)}</strong></span><span>◇ Raw max <strong>{maxima}</strong></span></div>
-    <p id={descriptionId} className="sr-only">Predicted energy by candidate panel angle. Current {formatAngle(current)}, recommended {formatAngle(recommended)}, highest raw predicted-energy candidates {maxima}. Exact values and combined roles are in the Candidate Table below.</p>
+    <p id={descriptionId} className="sr-only">Predicted energy by candidate panel angle. Current {formatAngle(current)}, recommended {formatAngle(recommended)}, highest raw predicted-energy candidates {maxima}. Exact values and combined roles are in the Candidate Comparison table below.</p>
     {candidates.length ? <div className="opt-chart" role="group" aria-label="Candidate energy chart" aria-describedby={descriptionId}>
       <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{width:640,height:270}}>
         <AreaChart data={candidates} margin={{top:18,right:22,bottom:20,left:0}} accessibilityLayer>
@@ -32,7 +32,7 @@ export function CandidateEnergyProfile({ candidates, current, recommended, rawAn
           {candidates.filter(point => point.roles.length > 0).map(point => <ReferenceDot key={point.angle_deg} x={point.angle_deg} y={point.predicted_kwh} r={point.roles.includes("Raw Max") ? 9 : 7} zIndex={100} fill={point.roles.includes("Recommended") ? "var(--success)" : "var(--card)"} stroke={point.roles.includes("Raw Max") ? "var(--warning)" : point.roles.includes("Recommended") ? "var(--success)" : "#74d8ff"} strokeWidth={3}/>)}
         </AreaChart>
       </ResponsiveContainer>
-    </div> : <p className="opt-empty">No candidate predictions available.</p>}
+    </div> : <p className="opt-empty">Candidate comparison unavailable.</p>}
     <div className="opt-chart-footer"><span>Predicted energy (kWh) · scaled axis</span><span>Raw predictions · not a net-benefit curve</span></div>
     <p className="opt-note">Hover or use arrow keys on the chart to inspect exact values and combined roles.</p>
   </OptimizationPanel>;

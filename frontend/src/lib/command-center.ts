@@ -77,3 +77,40 @@ export function getCommandCenterView(data: FrontendData) {
   };
 }
 export type CommandCenterView = ReturnType<typeof getCommandCenterView>;
+
+/** Presentation-only sequence; starting or advancing never changes a business result. */
+export const analysisDurationMs = 1200;
+export type AnalysisStep = -1 | 0 | 1 | 2 | 3 | 4;
+export function analysisTransition(step: AnalysisStep, event: { type: "start"; available: boolean; reducedMotion?: boolean } | { type: "advance" } | { type: "finish" }): AnalysisStep {
+  if (event.type === "start") return !event.available || (step >= 0 && step < 4) ? step : event.reducedMotion ? 4 : 0;
+  if (event.type === "finish") return step >= 0 ? 4 : step;
+  return step >= 0 && step < 4 ? (step + 1) as AnalysisStep : step;
+}
+
+export function getSimulationCommandView(data: FrontendData) {
+  const original = getCommandCenterView(data);
+  const target = getControlTargetRow(data);
+  const copy = [
+    ["Analyzing environmental conditions…", "Reading weather and farm conditions", "Environmental conditions ready"],
+    ["Predicting energy across panel angles…", "Evaluating available operating angles", "Energy predictions ready"],
+    ["Finding the best operating option…", "Comparing expected energy gain and panel movement cost", "Recommended angle found"],
+    ["Checking operating conditions…", "Reviewing operating and safety conditions", "Operating conditions approved"],
+  ];
+  const blocked = !data.safety.passed;
+  const available = !!target && (data.optimization !== null || data.decision.action === "STOW");
+  const action = data.decision.action;
+  const stages = original.agents.map((agent, index) => {
+    const issue = agent.status !== "COMPLETED" || (agent.agent === "manager" && blocked);
+    return { agent: agent.agent, title: agent.title, issue,
+      active: issue ? "Reviewing an analysis issue…" : copy[index][0],
+      detail: agent.status === "UNAVAILABLE" ? "Analysis input unavailable." : agent.status === "ISSUE" ? "This analysis needs attention." : copy[index][1],
+      completed: issue ? agent.agent === "manager" && blocked ? "Operating conditions need attention" : "Analysis needs attention" : copy[index][2] };
+  });
+  const angle = !target ? "Unavailable" : action === "HOLD" || target.angle_deg === data.decision.target_angle_deg ? formatAngle(target.angle_deg) : action === "STOW" ? formatAngle(data.decision.target_angle_deg) : `${formatAngle(target.angle_deg)} → ${formatAngle(data.decision.target_angle_deg)}`;
+  return { stages, available, targetId: target?.row_id ?? null, angle, action, blocked,
+    title: action === "STOW" ? "Stow panels" : blocked ? "Rotation blocked" : !available ? "AI recommendation unavailable" : action === "HOLD" ? "No adjustment recommended" : "Recommendation Ready",
+    safetyReason: data.safety.checks.filter(check => !check.passed).map(check => check.reason).join(" ") || data.safety.reason,
+    hasIssues: stages.some(stage => stage.issue),
+  };
+}
+export type SimulationCommandView = ReturnType<typeof getSimulationCommandView>;

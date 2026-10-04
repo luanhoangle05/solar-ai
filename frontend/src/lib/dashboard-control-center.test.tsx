@@ -17,8 +17,8 @@ describe("dashboard control center contract presentation", () => {
   it("keeps energy row-scoped and farm size separate without mutating the payload", () => {
     const before = structuredClone(fixture);
     const html = renderToStaticMarkup(<DashboardKpiGrid summary={getDashboardSummary(fixture)} metadata={fixture.metadata} farm={fixture.farm_status}/>);
-    expect(html).toContain("row / 60 min");
-    for (const value of ["Predicted Energy", "Energy Gain", "Total Panels", "Net Benefit", "1,000", "6.09"]) expect(html).toContain(value);
+    expect(html).toContain("per row · next 60 min");
+    for (const value of ["Predicted Energy", "Expected Gain", "Total Panels", "Net Benefit", "1,000", "6.09"]) expect(html).toContain(value);
     expect(fixture).toEqual(before);
   });
   it("presents a blocked negative result without positive net styling or execution controls", () => {

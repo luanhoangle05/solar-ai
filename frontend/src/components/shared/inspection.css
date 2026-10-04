@@ -86,6 +86,18 @@
 .inspect-table-scroll { overflow-x:auto; }
 .inspect-table-scroll table { min-width:610px; }
 .inspect-table-scroll caption { text-align:left; padding:12px 0 8px; color:#a8bfd1; font-size:11px; }
+
+/* Cooler analytical cards for Analytics and calm grouped surfaces for Settings. */
+.inspection-page :focus-visible { outline-color:var(--ai-cyan); }
+.inspect-kpis [data-slot=card] {
+  border-color:var(--border-subtle);
+  background:linear-gradient(135deg,var(--surface-2),var(--surface-1));
+  box-shadow:0 8px 22px #0000001f,inset 0 1px #82dcff05;
+}
+.inspect-kpis [data-slot=card]:nth-child(3) svg { color:var(--ai-cyan); }
+.inspect-kpis [data-slot=card]:nth-child(4) svg { color:var(--positive); }
+.inspect-current { border-color:var(--border-emphasis); background:#27c4ff0a; }
+.inspect-assumptions li { border-color:var(--border-subtle); background:var(--surface-2); }
 @media(max-width:1279px) { .inspect-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } .inspect-stages { grid-template-columns:repeat(4,minmax(0,1fr)); } }
 @media(max-width:767px) {
   .workspace:has(> .inspection-page) { padding:10px; }

@@ -1,41 +1,36 @@
-/* Sits directly under the command center; the decision and input panels move down one row. */
-.inspect-grid.inspect-scenario > .sfs { grid-column:1/-1; grid-row:2; }
-.inspect-grid.inspect-scenario > .ops-decision,.inspect-grid.inspect-scenario > .inspect-input { grid-row:3; }
-.sfs { --sfs-cyan:#35c8ff; --sfs-green:#22e39a; border:1px solid #1d4a70; border-radius:12px; padding:14px 16px 16px; background:linear-gradient(135deg,#07192d,#081f38 55%,#06172b); box-shadow:0 0 0 1px #0d2c4a inset,0 12px 34px #020a1480; min-width:0; }
-.sfs-header { display:grid; grid-template-columns:minmax(220px,1.1fr) auto minmax(230px,auto); gap:14px; align-items:stretch; margin-bottom:14px; }
-.sfs-title { display:flex; align-items:center; gap:12px; }
-.sfs-title > svg { color:var(--sfs-cyan); flex-shrink:0; }
-.sfs-title h2 { font-size:19px; font-weight:650; }
-.sfs-title p { color:#9fb9d1; font-size:11.5px; margin-top:3px; }
-.sfs-weather { display:grid; grid-template-columns:repeat(4,auto); border:1px solid #1d4a70; border-radius:10px; background:#071c33; }
-.sfs-weather > div { display:grid; grid-template-columns:auto auto; gap:1px 11px; align-items:center; padding:9px 18px; border-right:1px solid #173c5c; }
-.sfs-weather > div:last-child { border-right:0; }
-.sfs-weather svg { grid-row:1/3; color:var(--sfs-cyan); }
-.sfs-weather [data-kind=ghi] svg { color:#ffc94d; }
-.sfs-weather [data-kind=temperature] svg { color:#ff8a5b; }
-.sfs-weather dt { color:#a9c2d8; font-size:10.5px; }
-.sfs-weather dd { font-size:16px; font-weight:650; }
-.sfs-weather-missing { align-self:center; color:#ffd27a; font-size:11.5px; }
-.sfs-time { display:flex; align-items:center; gap:12px; border:1px solid #1d4a70; border-radius:10px; background:#071c33; padding:9px 15px; }
-.sfs-time svg { color:var(--sfs-cyan); flex-shrink:0; }
-.sfs-time span { display:block; color:#a9c2d8; font-size:10.5px; }
-.sfs-time strong { display:block; font-size:14px; font-weight:650; margin:1px 0; }
-.sfs-time small { color:#8fb0c8; font-size:9.5px; }
-.sfs-body { display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:14px; align-items:stretch; }
-.sfs-scene { min-width:0; display:flex; flex-direction:column; border:1px solid #1b4467; border-radius:11px; overflow:hidden; background:#081823; }
-.sfs-scene[data-preview=true] { border-color:var(--sfs-green); box-shadow:0 0 18px #22e39a33; }
-.sfs-scene-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:9px 12px; border-bottom:1px solid #1b4467; background:#071c33; font-size:10.5px; color:#a9c2d8; }
-.sfs-scene-bar > span { display:inline-flex; align-items:center; gap:6px; }
-.sfs-preview-tag { color:var(--sfs-green); font-weight:650; letter-spacing:.5px; }
-.sfs-scene-bar [role=group] { margin-left:auto; display:flex; background:#061421; padding:3px; border:1px solid #234057; border-radius:999px; }
-.sfs-scene-bar button { padding:5px 15px; border-radius:999px; cursor:pointer; color:#a7c0d4; font-size:11px; font-weight:600; }
-.sfs-scene-bar button[aria-pressed=true] { background:#0f4f86; color:#fff; box-shadow:0 0 0 1px var(--sfs-cyan); }
-.sfs-scene .fx-panel { border:0; border-radius:0; background:transparent; flex:1; }
-.sfs-scene .f3-canvas { height:440px; }
-/* The daylight scene is bright, so overlay text gets its own dark chip. */
-.sfs-scene .f3-scene-caption { padding:7px 10px; border-radius:6px; background:#071a2dd9; border:1px solid #2c495c; }
-.sfs-scene .fx-map { grid-column:auto; grid-row:auto; }
-.sfs-scene .f3-tracking { position:absolute; top:15px; right:16px; max-width:min(62%,560px); padding:7px 11px; border-radius:6px; border:1px solid #f5ad2f; background:#1d1606e6; color:#ffd98a; font-size:10px; letter-spacing:.3px; line-height:1.5; pointer-events:none; }
+/* Simulation-only composition. Shared Farm geometry and navigation keep their defaults. */
+.app-shell:has(.simulation-experience) .environment-status { display:none; }
+.simulation-experience { display:grid; gap:14px; color:#e7f2fb; font-size:13px; min-width:0; }
+.simulation-experience * { min-width:0; }
+.simulation-experience button,.simulation-experience summary { cursor:pointer; }
+.simulation-experience button:focus-visible,.simulation-experience summary:focus-visible,.simulation-experience select:focus-visible,.simulation-experience input:focus-visible { outline:2px solid #68d8ff; outline-offset:3px; }
+.sfs-body { display:grid; grid-template-columns:minmax(0,1fr) 286px; gap:14px; align-items:stretch; }
+.sfs-scene,.sfs-row,.sfs-weather,.sfs-status,.sim-disclosure { border:1px solid #234357; border-radius:11px; background:linear-gradient(135deg,#0e2434,#091b29); overflow:hidden; }
+.sfs-scene-bar { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:12px 14px; border-bottom:1px solid #234357; }
+.sfs-scene-bar h2 { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; }.sfs-scene-bar h2 svg { color:#4cc7ff; }.sfs-scene-bar [role=group] { display:flex; margin-left:auto; padding:3px; background:#061725; border:1px solid #244c64; border-radius:7px; }.sfs-scene-bar button { min-width:44px; min-height:32px; color:#96b2c6; border-radius:5px; font-size:12px; }.sfs-scene-bar button[aria-pressed=true] { background:#0787fa; color:white; }
+.sfs-preview-tag { font-size:10px; color:#6ce4c5; border:1px solid #2d7e68; padding:4px 7px; border-radius:5px; }
+.sfs-scene .f3-panel { border:0; border-radius:0; background:transparent; }.sfs-scene .f3-panel > .fx-panel-heading,.sfs-scene .f3-scene-caption,.sfs-scene .f3-legend,.sfs-scene .f3-operator-info { display:none; }.sfs-scene .f3-canvas { height:350px; }.sfs-scene .f3-toolbar { padding:8px 12px; gap:6px; }.sfs-scene .f3-toolbar button { font-size:10px; padding:6px 9px; min-height:32px; }.sfs-scene .f3-hover { font-size:10px; }.sfs-scene .f3-zone-label { padding:7px 11px; }.sfs-scene .f3-zone-label strong { font-size:12px; }
+.sfs-picker { display:flex; align-items:center; gap:10px; padding:9px 13px; border-top:1px solid #234357; font-size:11px; color:#9dbace; flex-wrap:wrap; }.sfs-picker select { color:#d7edfa; border:1px solid #33556b; border-radius:5px; background:#081c2b; padding:6px; max-width:100%; }.sfs-picker > span { margin-left:auto; font-size:10px; color:#7fa4b7; }
+.sfs-row { padding:14px; }.sfs-row header { display:flex; align-items:center; gap:8px; justify-content:space-between; }.sfs-row h2 { font-size:13px; color:#a2bed1; font-weight:500; }.sfs-row h3 { font-size:25px; letter-spacing:-.5px; font-weight:600; margin-top:8px; }.sfs-target { color:#60dbc4; display:flex; gap:4px; font-size:9px; align-items:center; }.sfs-row-meta { font-size:11px; color:#8baabc; margin-top:4px; }.sfs-row-meta span { float:right; color:#91d6bf; font-size:10px; }
+.sfs-diagram { margin:10px 0; }.sfs-diagram svg { width:100%; max-height:98px; border-radius:7px; }.sfs-diagram-panel { transition:transform .65s ease; }
+.sfs-angles { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding-bottom:12px; border-bottom:1px solid #234357; }.sfs-angles span { display:block; color:#8eb0c4; font-size:10px; }.sfs-angles strong { display:block; font-size:26px; margin-top:3px; color:#d7f0ff; }.sfs-angles > div:nth-child(2) strong { color:#6dd7fb; }
+.sfs-benefits { display:grid; gap:7px; margin-top:11px; }.sfs-benefits > div { display:flex; gap:8px; justify-content:space-between; align-items:baseline; }.sfs-benefits dt { font-size:11px; color:#9cb8c8; }.sfs-benefits dd { font-size:16px; font-weight:600; }.sfs-benefits dd[data-positive=true] { color:#5fe0b4; }.sim-scope { font-size:10px; color:#82a3b8; margin-top:6px; }
+.sfs-safety { display:flex; gap:6px; align-items:center; margin-top:12px; color:#ffbc80; font-size:11px; }.sfs-safety[data-safe=true] { color:#6ee0ba; }.sfs-safety[data-neutral=true] { color:#a9c2d8; }.sfs-row[data-blocked=true] { border-color:#b26b56; }
+.sfs-why { color:#96b7cb; font-size:11px; margin-top:11px; }.sfs-why p { margin-top:7px; line-height:1.5; }.sfs-no-recommendation { font-size:12px; color:#abc0d1; line-height:1.5; margin:12px 0; }
+.sfs-row-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:13px; }.sfs-row-actions button { display:flex; align-items:center; justify-content:center; gap:6px; flex:1; min-height:38px; padding:7px; font-size:11px; border:1px solid #2d7bac; border-radius:6px; color:#c7eafd; background:#0b3859; }.sfs-row-actions button[aria-pressed=true] { border-color:#44d1bd; color:#6df0d4; }
+.sfs-weather { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); padding:13px 16px; gap:12px; }.sfs-weather > div { display:flex; gap:8px; align-items:center; }.sfs-weather svg { color:#5bc7ef; flex-shrink:0; }.sfs-weather > div:first-child svg { color:#ffc953; }.sfs-weather span { color:#90b0c4; font-size:11px; }.sfs-weather strong { font-size:14px; margin-left:auto; font-weight:550; }.sfs-weather > p { grid-column:1/-1; color:#a1b9cb; }
+.sim-summaries { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:14px; }.sfs-zones { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; }.sfs-zones button { display:grid; grid-template-columns:auto 1fr; align-content:center; text-align:left; gap:6px; border:1px solid #26475b; border-top:2px solid var(--zone-color); border-radius:8px; background:#0b2233; padding:13px 10px; }.sfs-zones button[aria-pressed=true] { background:color-mix(in srgb,var(--zone-color) 14%,#0a2332); border-color:var(--zone-color); }.sfs-zones i { width:7px; height:7px; margin-top:4px; background:var(--zone-color); border-radius:50%; }.sfs-zones strong { font-size:12px; }.sfs-zones span { grid-column:1/-1; color:#8faec1; font-size:10px; }
+.sfs-status { padding:12px; }.sfs-status h2 { font-size:12px; color:#bbd0df; margin-bottom:10px; }.sfs-status dl { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }.sfs-status dt { font-size:8px; color:#88a6b9; }.sfs-status dd { font-size:19px; margin-top:3px; }.sfs-status [data-state=READY] dd { color:#61d8b0; }.sfs-status [data-state=STOWED] dd { color:#e2b66d; }
+.sim-details { display:grid; gap:9px; }.sim-disclosure h2 > button { display:flex; width:100%; align-items:center; gap:9px; padding:14px 16px; text-align:left; font-size:13px; }.sim-disclosure h2 small { margin-left:auto; font-size:11px; color:#8daec4; font-weight:400; }.sim-disclosure h2 svg { color:#54bdea; transform:rotate(-90deg); transition:transform .15s; }.sim-disclosure h2 button[aria-expanded=true] svg { transform:rotate(0); }.sim-disclosure-body { padding:0 16px 16px; border-top:1px solid #1e3c4f; }.sim-disclosure .fx-table-panel { border:0; background:transparent; }.sim-disclosure .fx-panel-heading { display:none; }.sim-disclosure .fx-filters { padding-inline:0; }.sim-disclosure table { width:100%; }.sim-disclosure .fx-table-scroll { margin-inline:0; }
+.sim-activity { display:grid; gap:12px; padding-top:16px; }.sim-activity li { display:flex; gap:11px; align-items:flex-start; }.sim-activity li > span { width:7px; height:7px; background:#50c5e6; border-radius:50%; margin-top:5px; }.sim-activity strong { font-size:12px; }.sim-activity p { color:#95b3c7; font-size:11px; margin-top:3px; }.sim-candidates { max-width:650px; border-collapse:collapse; margin-top:12px; }.sim-candidates th,.sim-candidates td { padding:9px 12px; text-align:left; border-bottom:1px solid #224051; font-size:12px; }.sim-candidates thead th { color:#93b6ca; font-weight:500; }
+.sim-safety-list { display:grid; gap:12px; padding-top:16px; }.sim-safety-list li { display:flex; gap:10px; }.sim-safety-list svg { color:#ffb284; flex-shrink:0; }.sim-safety-list [data-passed=true] svg { color:#59d8ad; }.sim-safety-list strong { font-size:12px; }.sim-safety-list p { font-size:11px; margin-top:3px; color:#a6bdcc; }.sim-warning { display:flex; align-items:flex-start; gap:8px; padding:11px 13px; margin-top:12px; color:#ffbd92; border:1px solid #ae704855; background:#69382233; border-radius:7px; font-size:12px; line-height:1.6; }.sim-warning svg { flex-shrink:0; margin-top:2px; }.sim-empty { min-height:330px; display:grid; place-items:center; color:#9cb8ca; }
+.sfs-map { background:radial-gradient(ellipse at 60% 30%,#28463b,#102b33 70%); padding:30px 25px 14px; }.sfs-map .farm-schematic { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:28px 22px; }.sfs-map .farm-zone { position:relative; }.sfs-map .zone-arrays { display:grid; grid-auto-rows:8px; gap:3px; padding:12px; border:1px solid var(--zone-color); background:color-mix(in srgb,var(--zone-color) 10%,#092329); border-radius:8px; transform:skewX(-8deg); }.sfs-map .solar-row-motif { border:1px solid #608fb4; background:repeating-linear-gradient(90deg,#1d5182 0 15px,#9abed5 16px,#194b77 17px 31px,#102530 32px 35px); }.sfs-map .solar-row-motif[aria-pressed=true] { outline:2px solid white; outline-offset:1px; }.sfs-map .solar-row-motif[data-target=true] { border-color:#3bdfb6; box-shadow:0 0 9px #3bdfb633; }.sfs-map .solar-row-motif[data-state=STOWED] { filter:saturate(.2); }.sfs-map .zone-label { position:relative; display:flex; gap:6px; align-items:center; color:#dce9f3; padding:8px 4px; text-align:left; }.sfs-map .zone-label svg { color:var(--zone-color); width:14px; }.sfs-map .zone-label strong { font-size:12px; }.sfs-map .zone-label small { display:none; }.sfs-map .zone-target { display:flex; font-size:9px; color:#64dfc0; margin-left:auto; }.sfs-map-caption { font-size:10px; color:#9bb8c3; text-align:center; margin-top:10px; }
+@media(min-width:1500px){.sfs-scene .f3-canvas{height:410px}.sfs-body{grid-template-columns:minmax(0,1fr) 310px}}
+@media(max-width:1199px){.sim-summaries{grid-template-columns:1fr}.sfs-status{display:flex;align-items:center;gap:20px}.sfs-status h2{margin:0}.sfs-status dl{flex:1}.sfs-weather > div{flex-wrap:wrap}.sfs-weather strong{margin-left:0}.sfs-body{grid-template-columns:minmax(0,1fr) 260px}}
+@media(max-width:1000px){.sfs-body{grid-template-columns:1fr}.sfs-row{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}.sfs-row header,.sfs-row h3,.sfs-row-meta{grid-column:1}.sfs-row h3{margin-top:0}.sfs-row .sfs-diagram{grid-column:2;grid-row:1/5;margin:0}.sfs-row .sfs-angles{grid-column:1}.sfs-row .sfs-benefits{grid-column:2}.sfs-row-actions{grid-column:1/-1}.sfs-row .sim-scope{grid-column:2}.sfs-scene .f3-canvas{height:380px}}
+@media(max-width:767px){.simulation-experience{gap:12px}.sfs-body{display:flex;flex-direction:column;gap:12px}.sfs-row{order:-1;padding:14px;gap:7px 12px}.sfs-row h3{font-size:22px}.sfs-row .sfs-diagram{grid-row:2/5;align-self:center}.sfs-row .sfs-angles{grid-column:1/-1}.sfs-row .sfs-angles strong{font-size:22px}.sfs-row-meta span{float:none;display:block;margin-top:3px}.sfs-angles{gap:8px}.sfs-row .sfs-benefits{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0}.sfs-benefits > div{display:block;margin-bottom:6px}.sfs-benefits dd{font-size:14px}.sfs-row .sim-scope{grid-column:1/-1}.sfs-why,.sfs-no-recommendation,.sfs-safety{grid-column:1/-1}.sfs-row-actions{margin-top:4px}.sfs-weather{grid-template-columns:1fr 1fr;padding:12px;gap:14px 10px}.sfs-weather strong{font-size:13px}.sfs-weather span{font-size:10px}.sfs-zones{grid-template-columns:1fr 1fr}.sfs-status{display:block}.sfs-status h2{margin-bottom:10px}.sfs-scene .f3-canvas{height:330px}.sfs-scene .f3-toolbar button{font-size:9px;padding:6px}.sfs-scene .f3-zone-label{padding:5px 7px}.sfs-scene .f3-zone-label strong{font-size:10px}.sfs-scene .f3-hover{font-size:8px;max-width:90%;padding:7px}.sfs-picker > span{width:100%;margin:0}.sfs-map{padding:20px 15px 12px}.sfs-map .farm-schematic{gap:15px 16px}.sfs-map .zone-arrays{padding:8px;grid-auto-rows:8px}.sfs-map .zone-target{font-size:0}.sfs-map .zone-label strong{font-size:11px}.sim-disclosure h2 > button{padding:13px 12px}.sim-disclosure h2 small{font-size:10px;max-width:45%;text-align:right}.sim-disclosure-body{padding-inline:12px}}
+@media(prefers-reduced-motion:reduce){.simulation-experience *{animation:none!important;transition:none!important}}
+@media(max-width:767px){.sfs-row header{grid-column:1/-1}.sfs-target{white-space:nowrap}}
 .lab { display:flex; flex-direction:column; flex:1; }
 .lab-canvas { position:relative; height:520px; background:#7fa6c9; touch-action:none; }
 .lab-canvas canvas { display:block; touch-action:none; }
@@ -53,36 +48,49 @@
 .lab-stage[data-grip=held] canvas { cursor:grabbing; }
 .lab-stage:focus-visible { outline:2px solid #2f8de0; outline-offset:-2px; }
 .lab-note { border-top:1px solid #1b4467; padding:10px 14px 13px; font-size:10px; line-height:1.6; color:#87a6bd; background:#071c33; }
-.sfs-row { display:flex; flex-direction:column; gap:12px; border:1px solid #1b4467; border-radius:11px; padding:14px; background:#071c33; min-width:0; }
-.sfs-row-head { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:start; }
-.sfs-dot { width:11px; height:11px; border-radius:50%; background:#8fb0c8; margin-top:6px; }
-.sfs-dot[data-target=true] { background:#ffc94d; box-shadow:0 0 10px #ffc94d99; }
-.sfs-row-head h3 { font-size:16px; font-weight:650; }
-.sfs-row-head p { color:#a9c2d8; font-size:11.5px; margin-top:3px; }
-.sfs-row-head p i { display:inline-block; height:10px; border-left:1px solid #466278; margin:0 7px; }
-.sfs-row-badges { display:grid; gap:5px; justify-items:end; }
-.sfs-target { display:inline-flex; align-items:center; gap:4px; color:#35e6d0; font-size:9px; font-weight:700; letter-spacing:.6px; }
-.sfs-diagram svg { display:block; width:100%; height:auto; border:1px solid #1e4c71; border-radius:8px; }
-.sfs-diagram-panel { transition:transform .7s ease; }
-.sfs-angles { display:grid; grid-template-columns:auto auto auto minmax(0,1fr); gap:12px; align-items:center; }
-.sfs-angles > svg { color:var(--sfs-cyan); }
-.sfs-angles span { display:block; color:#a9c2d8; font-size:10.5px; }
-.sfs-angles strong { font-size:22px; font-weight:650; }
-.sfs-angles [data-tone=recommended] strong { color:var(--sfs-green); }
-.sfs-gain { display:grid; grid-template-columns:auto minmax(0,1fr); gap:0 9px; border-left:1px solid #1e4c71; padding-left:13px; }
-.sfs-gain svg { grid-row:1/4; align-self:center; color:var(--sfs-green); }
-.sfs-gain strong { color:var(--sfs-green); font-size:19px; }
-.sfs-gain small { color:#8fb0c8; font-size:9.5px; }
-.sfs-reasoning { border:1px solid #1e4c71; border-radius:9px; padding:12px; background:#0a2a4588; display:grid; gap:9px; }
-.sfs-reasoning h4 { display:flex; align-items:center; gap:7px; font-size:12px; font-weight:650; }
-.sfs-reasoning h4 svg { color:var(--sfs-cyan); }
-.sfs-reasoning ul { display:grid; gap:7px; }
-.sfs-reasoning li { position:relative; padding-left:16px; font-size:11.5px; line-height:1.5; color:#dcecf9; overflow-wrap:anywhere; }
-.sfs-reasoning li::before { content:""; position:absolute; left:2px; top:6px; width:7px; height:7px; border-radius:50%; background:var(--sfs-green); }
-.sfs-reasoning p { font-size:11.5px; line-height:1.55; color:#b9cfe2; }
-.sfs-apply { justify-self:start; display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:8px; border:1px solid #4aa8f0; background:linear-gradient(180deg,#2f8de0,#1f6fc0); color:#fff; font-size:12px; font-weight:650; cursor:pointer; box-shadow:0 4px 16px #1688ff44; }
-.sfs-apply:hover { background:linear-gradient(180deg,#3a9bf0,#2478cc); }
-.sfs-apply[aria-pressed=true] { background:#0b3a2e; border-color:var(--sfs-green); color:#d9fff0; box-shadow:0 0 14px #22e39a44; }
-.sfs-note,.sfs-empty { color:#8fb0c8; font-size:10px; line-height:1.55; }
-@media (prefers-reduced-motion:reduce) { .sfs-diagram-panel { transition:none; } }
-@media(max-width:1400px) { .sfs-header { grid-template-columns:1fr; } .sfs-weather { grid-template-columns:repeat(2,1fr); } .sfs-body { grid-template-columns:1fr; } }
+
+/* Preserve the rich Farm header and supporting row panel above the lower details. */
+.simulation-experience .sfs-header { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; padding:16px; border:1px solid #234357; border-radius:11px; background:#0b2032; }
+.sfs-title { display:flex; align-items:center; gap:12px; }.sfs-title > svg { color:#35c8ff; flex-shrink:0; }.sfs-title h2 { font-size:20px; font-weight:650; }.sfs-title p { color:#9fb9d1; font-size:12px; margin-top:4px; }
+.sfs-time { display:grid; gap:3px; font-size:12px; color:#a9c2d8; }.sfs-time strong { color:#e0edf7; font-size:13px; }.sfs-time small { font-size:11px; }.sfs-header .sfs-weather { grid-column:1/-1; }
+.simulation-experience .sfs-body { grid-template-columns:minmax(0,1fr) 400px; }.simulation-experience .sfs-scene .f3-canvas { height:520px; }
+.simulation-experience .sfs-diagram { height:auto; margin:12px 0; }.simulation-experience .sfs-diagram svg { width:100%; height:auto; max-height:180px; }
+.sfs-reasoning { border:1px solid #1e4c71; border-radius:9px; padding:12px; background:#0a2a4588; margin-top:14px; }.sfs-reasoning h4 { font-size:12px; font-weight:650; margin-bottom:9px; }.sfs-reasoning ul,.sfs-reasoning-empty { display:grid; gap:8px; }.sfs-reasoning li,.sfs-reasoning-empty p { font-size:11.5px; line-height:1.55; color:#c9dfef; overflow-wrap:anywhere; }
+.simulation-experience .lab { --sfs-green:#22e39a; }.lab-readout { right:14px; grid-template-columns:repeat(3,minmax(0,1fr)); }.lab-readout > div { min-width:0; }
+@media(max-width:1199px){.simulation-experience .sfs-body{grid-template-columns:minmax(0,1fr) 340px}}
+@media(max-width:1000px){.simulation-experience .sfs-body{grid-template-columns:1fr}.sfs-reasoning{grid-column:1/-1}.simulation-experience .sfs-scene .f3-canvas{height:440px}}
+@media(max-width:767px){.simulation-experience .sfs-header{grid-template-columns:1fr}.sfs-title h2{font-size:18px}.sfs-time{gap:4px}.simulation-experience .sfs-scene .f3-canvas{height:330px}.lab-readout{left:8px;right:8px;gap:4px}.lab-readout > div{padding:7px}.lab-readout dd{font-size:17px}.lab-tag{top:52px;left:8px;right:8px;font-size:9px}.sfs-reasoning{margin-top:4px}.sfs-scene-bar{flex-wrap:wrap}.sfs-scene-bar [role=group]{flex-shrink:0}}
+
+/* Solar Twilight surface hierarchy; composition and scene behavior remain unchanged. */
+.simulation-experience { color:var(--text-primary); }
+.sfs-scene,.sfs-weather,.sfs-status {
+  border-color:var(--border-strong);
+  background:linear-gradient(135deg,var(--surface-2),var(--surface-1));
+  box-shadow:0 8px 26px #00000020,inset 0 1px #82dcff05;
+}
+.sfs-row {
+  border-color:var(--border-emphasis);
+  background:linear-gradient(145deg,var(--surface-elevated),var(--surface-2));
+  box-shadow:0 8px 26px #00000029,inset 0 1px #82dcff06;
+}
+.sim-disclosure { border-color:var(--border-subtle); background:var(--surface-1); }
+.simulation-experience .sfs-header {
+  border-color:var(--border-strong);
+  background:linear-gradient(135deg,var(--surface-2),var(--surface-1));
+  box-shadow:0 8px 26px #00000020,inset 0 1px #82dcff05;
+}
+.sfs-scene-bar h2 svg { color:var(--ai-cyan); }
+.sfs-scene-bar [role=group] { border-color:var(--border-strong); background:var(--solar-bg-deep); }
+.sfs-scene-bar button { color:var(--text-muted); }
+.sfs-scene-bar button:hover { background:#27c4ff0d; color:var(--text-primary); }
+.sfs-scene-bar button[aria-pressed=true] { color:var(--text-primary); background:#168cff33; box-shadow:inset 0 -2px var(--ai-cyan); }
+.sfs-angles strong { color:var(--ai-cyan-soft); }
+.sfs-angles > div:nth-child(2) strong { color:var(--positive-soft); }
+.sfs-weather svg { color:var(--ai-cyan-soft); }
+.sfs-weather > div:first-child svg { color:var(--solar-amber); }
+.sfs-weather > div:nth-child(2) svg { color:#8dbde0; }
+.sfs-weather > div:nth-child(3) svg { color:var(--solar-orange); }
+.sfs-map {
+  background:radial-gradient(circle at 55% 10%,#3ebea00e,transparent 42%),linear-gradient(180deg,#092633 0%,#0a282d 48%,#08251f 100%);
+}
+.sfs-reasoning { border-color:var(--border-strong); background:var(--surface-3); }
