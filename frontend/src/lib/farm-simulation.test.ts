@@ -1,0 +1,34 @@
+import { beforeAll, describe, expect, it } from "vitest";
+import { loadFrontendData } from "./frontend-data.server";
+import { getPreviewAngle, getPreviewFarm, getRowSimulationView, getSimulationConditions } from "./farm-simulation";
+import type { FrontendData } from "../types/solar";
+let data: FrontendData;
+beforeAll(async () => { data = await loadFrontendData(); });
+describe("solar farm simulation view", () => {
+  it("shows the supplied weather snapshot", () => expect(getSimulationConditions(data).weather?.map(item => item.value)).toEqual(["850 W/m²", "15%", "22°C", "14 km/h"]));
+  it("reports missing weather as null, not zeros", () => expect(getSimulationConditions({ ...data, current_weather: null }).weather).toBeNull());
+  it("shows the recorded interval and horizon", () => expect(getSimulationConditions(data)).toMatchObject({ interval: "21 Jun 2026, 19:00:00 UTC", horizon: "60 min" }));
+  it("previews the manager's decided target", () => expect(getPreviewAngle(data)).toBe(45));
+  it("previews a STOW at the stow angle", () => expect(getPreviewAngle({ ...data, decision: { action: "STOW", target_angle_deg: 0, reason: "Severe wind" } })).toBe(0));
+  it("has no preview when the manager holds, even if another angle was recommended", () => expect(getPreviewAngle({ ...data, decision: { action: "HOLD", target_angle_deg: 35, reason: "Blocked" } })).toBeNull());
+  it("draws only the control target at the recommended angle", () => {
+    const preview = getPreviewFarm(data);
+    expect(preview.rows.find(row => row.row_id === "row-001")?.angle_deg).toBe(45);
+    expect(preview.rows.filter(row => row.row_id !== "row-001")).toEqual(data.farm_status.rows.filter(row => row.row_id !== "row-001"));
+  });
+  it("never changes the validated payload", () => { getPreviewFarm(data); expect(data.farm_status.rows[0].angle_deg).toBe(35); });
+  it("returns the same farm when nothing can be previewed", () => expect(getPreviewFarm({ ...data, decision: { action: "HOLD", target_angle_deg: 35, reason: "Blocked" } })).toBe(data.farm_status));
+  it("describes the control target with its recommendation", () => expect(getRowSimulationView(data, "row-001")).toMatchObject({ isTarget: true, zoneName: "Zone 1", position: "Row 1 of 13", currentAngle: 35, recommendedAngle: 45, gain: "+0.29 kWh", horizon: "60 min" }));
+  it("restates supplied values as reasoning", () => expect(getRowSimulationView(data, "row-001")?.reasoning).toEqual([
+    "45° gives the best net benefit (+0.26 kWh eq.).",
+    "Energy gain +0.29 kWh against movement cost 0.03 kWh eq.",
+    `Safety passed: ${data.safety.reason}`,
+    `Decision ROTATE → 45°: ${data.decision.reason}`,
+  ]));
+  it("gives other rows no recommendation, gain or reasoning", () => {
+    const other = data.farm_status.rows.find(row => row.row_id !== "row-001")!;
+    expect(getRowSimulationView(data, other.row_id)).toMatchObject({ isTarget: false, recommendedAngle: null, gain: null, reasoning: [], currentAngle: other.angle_deg });
+  });
+  it("says so when the target has no optimization result", () => expect(getRowSimulationView({ ...data, optimization: null }, "row-001")).toMatchObject({ recommendedAngle: null, gain: null, reasoning: expect.arrayContaining(["No optimization result was supplied for this run."]) }));
+  it("returns null for an unknown row", () => expect(getRowSimulationView(data, "row-999")).toBeNull());
+});
