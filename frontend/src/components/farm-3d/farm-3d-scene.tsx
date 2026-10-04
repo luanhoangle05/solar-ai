@@ -3,11 +3,11 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type CSSProperties, type RefObject } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Cloud, Clouds, Environment, Html, OrbitControls, Sky as DreiSky } from "@react-three/drei";
-import { AdditiveBlending, CanvasTexture, Color, InstancedMesh, MeshBasicMaterial, Object3D, RepeatWrapping, SRGBColorSpace, type DirectionalLight, type Group, type Mesh, type ShaderMaterial } from "three";
+import { AdditiveBlending, CanvasTexture, Color, InstancedMesh, MeshBasicMaterial, Object3D, RepeatWrapping, SRGBColorSpace, Vector3, type DirectionalLight, type Group, type Mesh, type ShaderMaterial } from "three";
 import { Box, Crosshair, Eye, RotateCcw, ScanLine } from "lucide-react";
 import { getZoneColor } from "@/config/zones";
 import { rowStatePresentation } from "@/config/row-states";
-import { buildFarmSceneLayout, cameraDirections, getCameraPreset, getCloudDriftX, getInstanceRowId, getSceneEnvironment, getSceneRow, getSunArcPosition, sceneDimensions, sceneSky, type FarmSceneLayout, type SceneEnvironment, type SceneRow, type SceneZone, type Vec3 } from "@/lib/farm-3d";
+import { buildFarmSceneLayout, cameraDirections, getCameraPreset, getCloudDriftX, getInstanceRowId, getRowCloseUpPreset, getSceneEnvironment, getSceneRow, getSunArcPosition, sceneDimensions, sceneSky, type FarmSceneLayout, type SceneEnvironment, type SceneRow, type SceneZone, type Vec3 } from "@/lib/farm-3d";
 import { formatZoneName } from "@/lib/farm";
 import { formatAngle } from "@/lib/formatters";
 import { FarmPanel } from "@/components/farm/farm-panel";
@@ -238,16 +238,30 @@ function CameraRig({ layout, request, scenic }: { layout: FarmSceneLayout; reque
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const { camera, size, invalidate, controls: activeControls } = useThree();
   const direction = scenic ? cameraDirections.scenic : cameraDirections.overview;
-  const preset = useMemo(() => getCameraPreset(layout, size.width / Math.max(1, size.height), request.id, direction), [layout, size.width, size.height, request.id, direction]);
+  // In the scenic view a clicked row gets a close, photo-like angle; elsewhere a row is framed whole.
+  const preset = useMemo(() => (scenic ? getRowCloseUpPreset(layout, request.id) : null) ?? getCameraPreset(layout, size.width / Math.max(1, size.height), request.id, direction), [layout, size.width, size.height, request.id, direction, scenic]);
+  // The scenic view glides to each new preset; `flight` holds the destination while a glide is in progress.
+  const flight = useRef<{ position: Vector3; target: Vector3 } | null>(null);
+  const placed = useRef(false);
   useEffect(() => {
     // Apply the first preset after OrbitControls registers, so its initial update
     // cannot overwrite the overview with the default camera position.
     if (!activeControls || !size.width || !size.height) return;
+    if (scenic && placed.current) { flight.current = { position: new Vector3(...preset.position), target: new Vector3(...preset.target) }; return; }
+    placed.current = true;
     camera.position.set(...preset.position); camera.lookAt(...preset.target);
     controls.current?.target.set(...preset.target); controls.current?.update(); invalidate();
-  }, [camera, invalidate, preset, request.sequence, activeControls, size.width, size.height]);
+  }, [camera, invalidate, preset, request.sequence, activeControls, size.width, size.height, scenic]);
+  useFrame((_, delta) => {
+    const goal = flight.current, orbit = controls.current;
+    if (!goal || !orbit) return;
+    const step = 1 - Math.exp(-3.2 * Math.min(delta, 0.1));
+    camera.position.lerp(goal.position, step); orbit.target.lerp(goal.target, step); orbit.update();
+    if (camera.position.distanceTo(goal.position) < 0.03) { camera.position.copy(goal.position); orbit.target.copy(goal.target); orbit.update(); flight.current = null; }
+  });
   const maxDistance = Math.max(getCameraPreset(layout, size.width / Math.max(1, size.height)).distance, preset.distance) * 1.8;
-  return <OrbitControls ref={controls} makeDefault enableDamping={false} minDistance={12} maxDistance={maxDistance} minPolarAngle={0.12} maxPolarAngle={Math.PI / 2.15} onChange={() => invalidate()} />;
+  // Dragging takes over from a glide in progress.
+  return <OrbitControls ref={controls} makeDefault enableDamping={false} minDistance={scenic ? 4 : 12} maxDistance={maxDistance} minPolarAngle={0.12} maxPolarAngle={Math.PI / 2.15} onStart={() => { flight.current = null; }} onChange={() => invalidate()} />;
 }
 function ContextGuard({ onFailure }: { onFailure: () => void }) {
   const gl = useThree(state => state.gl);
@@ -259,7 +273,7 @@ function ContextGuard({ onFailure }: { onFailure: () => void }) {
   }, [gl, onFailure]);
   return null;
 }
-function FarmGeometry({ layout, props, labels, onHover, portal, environment }: { layout: FarmSceneLayout; props: Farm3DProps; labels: boolean; onHover: (id: string | null) => void; portal: RefObject<HTMLDivElement>; environment: SceneEnvironment | null }) {
+function FarmGeometry({ layout, props, labels, onRow, onHover, portal, environment }: { layout: FarmSceneLayout; props: Farm3DProps; labels: boolean; onRow: (id: string) => void; onHover: (id: string | null) => void; portal: RefObject<HTMLDivElement>; environment: SceneEnvironment | null }) {
   const scenic = environment !== null;
   const texture = useMemo(() => scenic ? makeModuleTexture() : makePanelTexture(), [scenic]);
   useEffect(() => () => texture.dispose(), [texture]);
@@ -274,7 +288,7 @@ function FarmGeometry({ layout, props, labels, onHover, portal, environment }: {
       return <group key={zone.id}>
         <mesh receiveShadow position={zone.position}><boxGeometry args={[zone.width, 0.12, zone.depth]}/><meshStandardMaterial color={props.selectedZone === zone.id ? "#213c43" : "#182f35"}/></mesh>
         <Border center={[zone.position[0], 0.13, zone.position[2]]} width={zone.width} depth={zone.depth} color={color} thickness={props.selectedZone === zone.id ? 0.22 : 0.1}/>
-        <PanelInstances zone={zone} texture={texture} scenic={scenic} onRow={props.onRow} onHover={onHover}/>
+        <PanelInstances zone={zone} texture={texture} scenic={scenic} onRow={onRow} onHover={onHover}/>
         {labels && <Html portal={portal} position={[zone.position[0], 2.5, zone.position[2] - zone.depth / 2 + 0.5]} center zIndexRange={[15, 0]}><button className="f3-zone-label" style={{ "--zone-color": getZoneColor(zone.id) } as CSSProperties} type="button" aria-pressed={props.selectedZone === zone.id} onClick={() => props.onZone(zone.id)}><strong>{formatZoneName(zone.id)}</strong><span>{zone.rows.length} rows · {zone.panels.length} panels</span></button></Html>}
       </group>;
     })}
@@ -296,6 +310,8 @@ export default function Farm3DScene(props: Farm3DProps) {
   const [request, setRequest] = useState({ id: null as string | null, sequence: 0 });
   const hoverRow = getSceneRow(layout, hovered)?.row;
   function focus(id: string | null) { setRequest(previous => ({ id, sequence: previous.sequence + 1 })); }
+  // In the scenic view, clicking a row also flies the camera in for a close look at it.
+  function pickRow(id: string) { props.onRow(id); if (environment !== null) focus(id); }
   return <FarmPanel title="3D Farm View" icon={Box} className="f3-panel" meta={<span className="fx-note">SCHEMATIC · {layout.panelCount.toLocaleString("en-US")} PANELS</span>}>
     <div className="f3-toolbar" aria-label="Camera and display controls">
       <button type="button" onClick={() => focus(null)}><RotateCcw size={14}/>Overview</button>
@@ -305,7 +321,7 @@ export default function Farm3DScene(props: Farm3DProps) {
     </div>
     {failed ? <SceneUnavailable onExit={props.onExit}/> : <div className="f3-canvas" data-hovered={!!hoverRow} role="group" aria-label="Schematic 3D farm. Drag to orbit, right-drag to pan, scroll or pinch to zoom. Use the row picker or table for keyboard inspection.">
       <Canvas onCreated={state => { if (environment !== null) state.gl.toneMappingExposure = 0.42; }} shadows={environment !== null} frameloop={environment !== null ? "always" : "demand"} dpr={[1, 1.5]} camera={{ fov: 42, near: 0.1, far: 2000 }} gl={{ antialias: true, powerPreference: "low-power" }} fallback={<SceneUnavailable onExit={props.onExit}/>}>
-        <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={request} scenic={environment !== null}/><FarmGeometry layout={layout} props={props} labels={labels} onHover={setHovered} portal={labelPortal} environment={environment}/>
+        <ContextGuard onFailure={() => setFailed(true)}/><CameraRig layout={layout} request={request} scenic={environment !== null}/><FarmGeometry layout={layout} props={props} labels={labels} onRow={pickRow} onHover={setHovered} portal={labelPortal} environment={environment}/>
       </Canvas>
       <div className="f3-label-layer" ref={labelPortal}/>
       <div className="f3-scene-caption"><span>SCHEMATIC 3D VIEW</span><strong>{layout.zones.length} zones <i/> {layout.rows.length} rows</strong></div>

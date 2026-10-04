@@ -67,6 +67,16 @@ export function getCameraPreset(layout: FarmSceneLayout, aspect: number, rowId: 
   return { target, distance, position: [target[0] + distance * direction[0], target[1] + distance * direction[1], target[2] + distance * direction[2]] };
 }
 
+/** A photo-like three-quarter view of one row: in front of the tilted panel faces, off to one side and a little above them. */
+export const rowCloseUp = { direction: [0.6, 0.45, 0.66], distance: 8 } as const satisfies { direction: Vec3; distance: number };
+export function getRowCloseUpPreset(layout: FarmSceneLayout, rowId: string | null): { position: Vec3; target: Vec3; distance: number } | null {
+  const row = getSceneRow(layout, rowId);
+  if (!row) return null;
+  const length = Math.hypot(...rowCloseUp.direction), distance = rowCloseUp.distance;
+  const [x, y, z] = row.position;
+  return { target: [x, y, z], distance, position: [x + rowCloseUp.direction[0] / length * distance, y + rowCloseUp.direction[1] / length * distance, z + rowCloseUp.direction[2] / length * distance] };
+}
+
 /** Weather values the scenic 3D view reacts to. Both come straight from the payload's current_weather. */
 export type SceneWeather = { cloudCoverPct: number; ghiWm2: number; windSpeedKmh?: number };
 export type SceneCloud = { position: Vec3; scale: number };

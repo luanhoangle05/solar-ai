@@ -112,6 +112,16 @@ describe("scenic sky follows the supplied weather", () => {
 });
 
 import { getCloudDriftX, getSunArcPosition, sceneSky } from "./farm-3d";
+import { getRowCloseUpPreset, rowCloseUp } from "./farm-3d";
+describe("row close-up camera", () => {
+  let scene: FarmSceneLayout;
+  beforeAll(async () => { scene = buildFarmSceneLayout((await loadFrontendData()).farm_status); });
+  it("looks at the clicked row", () => expect(getRowCloseUpPreset(scene, "row-001")?.target).toEqual(getSceneRow(scene, "row-001")?.position));
+  it("stands a fixed short distance away", () => { const preset = getRowCloseUpPreset(scene, "row-001")!; expect(Math.hypot(...preset.position.map((value, axis) => value - preset.target[axis]))).toBeCloseTo(rowCloseUp.distance); });
+  it("stands in front of and above the panel faces", () => { const preset = getRowCloseUpPreset(scene, "row-001")!; expect(preset.position[2]).toBeGreaterThan(preset.target[2]); expect(preset.position[1]).toBeGreaterThan(preset.target[1]); });
+  it("is much closer than the row-fit preset", () => expect(getRowCloseUpPreset(scene, "row-001")!.distance).toBeLessThan(getCameraPreset(scene, 2, "row-001").distance));
+  it("has no close-up for an unknown row", () => expect(getRowCloseUpPreset(scene, "row-999")).toBeNull());
+});
 describe("illustrative sun and cloud motion", () => {
   const bounds = { width: 60, depth: 60, center: [0, 0, 0] as [number, number, number] };
   const environment = getSceneEnvironment({ cloudCoverPct: 15, ghiWm2: 850, windSpeedKmh: 14 }, bounds);

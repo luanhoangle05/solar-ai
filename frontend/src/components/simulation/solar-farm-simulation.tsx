@@ -48,7 +48,7 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
     <div className="sfs-body">
       <div className="sfs-scene" data-preview={isPreviewing}>
         <div className="sfs-scene-bar">
-          <span><MousePointerClick size={14} aria-hidden="true"/>Drag to rotate · Scroll to zoom · Click a row to inspect</span>
+          <span><MousePointerClick size={14} aria-hidden="true"/>Drag to rotate · Scroll to zoom · Click a row to zoom in on it · Overview to zoom back out</span>
           {isPreviewing && <span className="sfs-preview-tag"><Eye size={13} aria-hidden="true"/>PREVIEW · {data.decision.action} · {targetId} drawn at {formatAngle(previewAngle)}</span>}
           <div role="group" aria-label="Farm view"><button type="button" aria-pressed={view === "2d"} onClick={() => setView("2d")}>2D</button><button type="button" aria-pressed={view === "3d"} onClick={() => setView("3d")}>3D</button></div>
         </div>
