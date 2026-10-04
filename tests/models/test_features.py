@@ -1,5 +1,6 @@
 """Model feature layout: contract columns plus geometry terms; never the label."""
 
+from datetime import datetime, timedelta, timezone
 import math
 import unittest
 
@@ -8,8 +9,9 @@ import numpy as np
 from src.common.schema import FEATURE_COLUMNS
 from src.common.tool_contracts import ToolError
 from src.models.advanced.features import (
-    GEOMETRY_FEATURES, MODEL_FEATURE_NAMES, at_candidate_angles, feature_matrix, feature_names,
+    GEOMETRY_FEATURES, MODEL_FEATURE_NAMES, at_candidate_angles, feature_matrix, feature_names, split_for_early_stopping,
 )
+from src.models.data_loader import PIPELINE_DATASET_SOURCE, load_dataset_split
 
 
 def weather(**overrides: float) -> dict:
@@ -95,6 +97,91 @@ class FeatureMatrixTest(unittest.TestCase):
             feature_matrix([incomplete])
         with self.assertRaises(ToolError):
             feature_matrix([weather(ghi_wm2=float("nan"))])
+
+
+CANDIDATE_ANGLES = (30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0)
+
+
+def hourly_groups(hour_count: int) -> list[dict]:
+    """`hour_count` consecutive hours, each with all seven candidate-angle rows."""
+    start = datetime(2023, 7, 15, tzinfo=timezone.utc)
+    return [
+        weather(timestamp=(start + timedelta(hours=hour)).isoformat().replace("+00:00", "Z"), panel_angle_deg=angle, actual_kwh=1.0)
+        for hour in range(hour_count) for angle in CANDIDATE_ANGLES
+    ]
+
+
+class EarlyStoppingSplitTest(unittest.TestCase):
+    """The early-stopping boundary falls between hours, never between the angle rows of one hour."""
+
+    def assert_whole_hours(self, rows: list[dict], fit: list[dict], stop: list[dict]) -> None:
+        self.assertEqual([*fit, *stop], list(rows))
+        fit_hours, stop_hours = {row["timestamp"] for row in fit}, {row["timestamp"] for row in stop}
+        self.assertEqual(fit_hours & stop_hours, set())
+        for subset in (fit, stop):
+            angles_by_hour: dict[str, list[float]] = {}
+            for row in subset:
+                angles_by_hour.setdefault(row["timestamp"], []).append(row["panel_angle_deg"])
+            self.assertTrue(all(tuple(angles) == CANDIDATE_ANGLES for angles in angles_by_hour.values()))
+        self.assertLess(max(fit_hours), min(stop_hours))
+
+    def test_a_raw_row_cut_would_split_an_hour_but_the_split_does_not(self) -> None:
+        rows = hourly_groups(50)
+        raw_cut = len(rows) - int(len(rows) * 0.15)
+        self.assertNotEqual(raw_cut % len(CANDIDATE_ANGLES), 0, "the fixture must make a raw row cut land inside an hour")
+
+        fit, stop = split_for_early_stopping(rows)
+
+        self.assert_whole_hours(rows, fit, stop)
+        self.assertEqual(len({row["timestamp"] for row in stop}), int(50 * 0.15))
+
+    def test_the_4704_row_sample_is_not_cut_at_row_3999(self) -> None:
+        rows = hourly_groups(672)
+        self.assertEqual((len(rows), len(rows) - int(len(rows) * 0.15)), (4704, 3999))
+
+        fit, stop = split_for_early_stopping(rows)
+
+        self.assert_whole_hours(rows, fit, stop)
+        self.assertEqual((len(fit), len(stop)), (572 * 7, 100 * 7))
+
+    def test_pipeline_train_window_is_split_between_hours(self) -> None:
+        rows = load_dataset_split(PIPELINE_DATASET_SOURCE).train
+
+        fit, stop = split_for_early_stopping(rows)
+
+        self.assert_whole_hours(rows, list(fit), list(stop))
+
+    def test_one_row_per_hour_keeps_the_same_share(self) -> None:
+        rows = [row for row in hourly_groups(40) if row["panel_angle_deg"] == 35.0]
+
+        fit, stop = split_for_early_stopping(rows)
+
+        self.assertEqual((len(fit), len(stop)), (34, 6))
+
+    def test_too_few_hours_leaves_the_stopping_slice_empty(self) -> None:
+        fit, stop = split_for_early_stopping(hourly_groups(3))
+
+        self.assertEqual((len(fit), len(stop)), (21, 0))
+
+    def test_hours_that_are_not_contiguous_are_rejected(self) -> None:
+        rows = hourly_groups(20)
+        scattered = [*rows[7:], *rows[:7]][3:] + [*rows[7:], *rows[:7]][:3]
+
+        with self.assertRaisesRegex(ToolError, "timestamp"):
+            split_for_early_stopping(scattered)
+
+    def test_timestamps_that_cannot_be_compared_are_rejected(self) -> None:
+        rows = hourly_groups(20)
+        mixed = [{**row, "timestamp": row["timestamp"].rstrip("Z")} for row in rows[:7]] + rows[7:]
+
+        with self.assertRaisesRegex(ToolError, "compare"):
+            split_for_early_stopping(mixed)
+
+    def test_rows_out_of_chronological_order_are_rejected(self) -> None:
+        rows = hourly_groups(20)
+
+        with self.assertRaisesRegex(ToolError, "chronological"):
+            split_for_early_stopping([*rows[70:], *rows[:70]])
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ Measured with the validation RMSE and the decision-quality metric in evaluation.
   trees they lower RMSE but make the predicted angle curve bumpier.
 """
 
+from datetime import datetime
 from typing import Sequence
 
 import numpy as np
@@ -86,10 +87,32 @@ def at_candidate_angles(weather: WeatherFeatures, candidate_angles_deg: Sequence
 
 
 def split_for_early_stopping(train_rows: Sequence[WeatherRow], fraction: float = EARLY_STOPPING_FRACTION) -> tuple[Sequence[WeatherRow], Sequence[WeatherRow]]:
-    """(fit rows, early-stopping rows): the latest `fraction` of the train window is held for stopping.
+    """(fit rows, early-stopping rows): the latest `fraction` of the train window's hours is held for stopping.
+
+    An hour may hold several rows, one per candidate panel angle. The share is
+    counted in hours and the boundary falls between two hours, so every row of
+    an hour lands on the same side. Rows are never shuffled: fit hours all come
+    before stopping hours.
 
     Both advanced models stop on this slice, so the validation window stays
     unseen until model selection.
     """
-    cut = len(train_rows) - int(len(train_rows) * fraction)
+    starts = _hour_starts(train_rows)
+    held_hours = int(len(starts) * fraction)
+    cut = starts[len(starts) - held_hours] if held_hours else len(train_rows)
     return train_rows[:cut], train_rows[cut:]
+
+
+def _hour_starts(rows: Sequence[WeatherRow]) -> list[int]:
+    """Index of the first row of each timestamp group; groups must be contiguous and in time order."""
+    starts = [index for index, row in enumerate(rows) if index == 0 or row["timestamp"] != rows[index - 1]["timestamp"]]
+    if len(starts) != len({row["timestamp"] for row in rows}):
+        raise ToolError("Rows sharing a timestamp must be contiguous before an early-stopping split")
+    try:
+        instants = [datetime.fromisoformat(rows[index]["timestamp"].replace("Z", "+00:00")) for index in starts]
+        ordered = all(earlier < later for earlier, later in zip(instants, instants[1:]))
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise ToolError(f"Cannot compare timestamps for the early-stopping split: {exc!r}") from exc
+    if not ordered:
+        raise ToolError("Rows must be in chronological order before an early-stopping split")
+    return starts

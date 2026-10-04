@@ -7,10 +7,12 @@ import tempfile
 import unittest
 from unittest import mock
 
-from src.common.schema import WEATHER_COLUMNS
+from src.common.schema import FEATURE_COLUMNS, WEATHER_COLUMNS
+from src.models.advanced.features import feature_matrix, label_vector
 from src.models.data_loader import (
     DATASET_KIND_ENV, DATASET_PATH_ENV, EXAMPLE_DATASET_PATH, EXAMPLE_DATASET_SOURCE, LABEL_SOURCE_ENV,
-    PIPELINE_DATASET_PATH, PIPELINE_DATASET_SOURCE, DatasetError, DatasetSource, default_dataset_source,
+    FULL_SPLIT_FILE_NAMES, PIPELINE_DATASET_PATH, PIPELINE_DATASET_SOURCE, SAMPLE_SPLIT_FILE_NAMES, DatasetError, DatasetSource,
+    default_dataset_source,
     hourly_weather, load_dataset_split, load_weather_rows,
 )
 
@@ -180,10 +182,112 @@ class LoadDatasetSplitTest(unittest.TestCase):
         self.assertEqual(len(hourly_weather(split.test)), len(angles_by_hour))
         self.assertEqual({frozenset(angles) for angles in angles_by_hour.values()}, {frozenset({30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0})})
 
-    def test_directory_missing_a_window_file_is_an_error(self) -> None:
+    def test_directory_without_a_complete_set_of_split_files_is_an_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            with self.assertRaisesRegex(DatasetError, "not found"):
+            with self.assertRaisesRegex(DatasetError, "train.csv"):
                 load_dataset_split(DatasetSource(Path(directory), "LIVE", "physics-derived"))
+
+
+def angle_rows(timestamp: str, kwh: float) -> list[list]:
+    """The seven candidate-angle rows of one hour; the label tells the files apart."""
+    return [[timestamp, 13, 35, 0, 10, 16, 250, 420, 115, 19, 77, angle, kwh] for angle in (30, 35, 40, 45, 50, 55, 60)]
+
+
+def hours(year: int, count: int, kwh: float) -> list[list]:
+    return [row for hour in range(count) for row in angle_rows(f"{year}-01-15T{hour:02d}:00:00Z", kwh)]
+
+
+class DeliveredSplitFilesTest(unittest.TestCase):
+    """Three delivered files are the split; they are never cut again by row percentage."""
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.directory = Path(directory.name)
+        self.source = DatasetSource(self.directory, "LIVE", "physics-derived")
+
+    def write(self, file_name: str, rows: list[list]) -> None:
+        with (self.directory / file_name).open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(WEATHER_COLUMNS)
+            writer.writerows(rows)
+
+    def write_set(self, names: dict[str, str], *, label_offset: float = 0.0) -> None:
+        # Deliberately far from 70/15/15, so a percentage re-split could not reproduce these sizes.
+        self.write(names["train"], hours(2023, 3, 1.0 + label_offset))
+        self.write(names["validation"], hours(2024, 5, 2.0 + label_offset))
+        self.write(names["test"], hours(2025, 4, 3.0 + label_offset))
+
+    def assert_windows(self, split, *, label_offset: float = 0.0) -> None:
+        for name, year, hour_count, kwh in (("train", "2023", 3, 1.0), ("validation", "2024", 5, 2.0), ("test", "2025", 4, 3.0)):
+            rows = getattr(split, name)
+            self.assertEqual(len(rows), hour_count * 7, name)
+            self.assertEqual({row["timestamp"][:4] for row in rows}, {year}, name)
+            self.assertEqual({row["actual_kwh"] for row in rows}, {kwh + label_offset}, name)
+
+    def test_full_dataset_file_names_load_as_the_delivered_windows(self) -> None:
+        self.write_set(FULL_SPLIT_FILE_NAMES)
+
+        split = load_dataset_split(self.source)
+
+        self.assertEqual(FULL_SPLIT_FILE_NAMES, {"train": "train.csv", "validation": "validation.csv", "test": "test.csv"})
+        self.assert_windows(split)
+        for name, file_name in FULL_SPLIT_FILE_NAMES.items():
+            self.assertEqual(list(getattr(split, name)), load_weather_rows(self.directory / file_name))
+
+    def test_sample_file_names_still_load_as_the_delivered_windows(self) -> None:
+        self.write_set(SAMPLE_SPLIT_FILE_NAMES)
+
+        self.assert_windows(load_dataset_split(self.source))
+
+    def test_full_dataset_files_take_priority_over_sample_files(self) -> None:
+        self.write_set(SAMPLE_SPLIT_FILE_NAMES, label_offset=0.5)
+        self.write_set(FULL_SPLIT_FILE_NAMES)
+
+        self.assert_windows(load_dataset_split(self.source))
+
+    def test_a_single_combined_file_never_overrides_the_delivered_windows(self) -> None:
+        self.write_set(FULL_SPLIT_FILE_NAMES)
+        self.write("full_dataset.csv", [*hours(2023, 3, 9.0), *hours(2024, 5, 9.0), *hours(2025, 4, 9.0)])
+
+        self.assert_windows(load_dataset_split(self.source))
+
+    def test_an_incomplete_full_set_is_an_error_even_when_a_sample_set_is_complete(self) -> None:
+        self.write_set(SAMPLE_SPLIT_FILE_NAMES, label_offset=0.5)
+        self.write("train.csv", hours(2023, 3, 1.0))
+        self.write("validation.csv", hours(2024, 5, 2.0))
+
+        with self.assertRaisesRegex(DatasetError, "missing test.csv"):
+            load_dataset_split(self.source)
+
+    def test_a_directory_with_only_a_combined_file_is_not_split_by_percentage(self) -> None:
+        self.write("full_dataset.csv", hours(2023, 20, 1.0))
+
+        with self.assertRaisesRegex(DatasetError, "train.csv"):
+            load_dataset_split(self.source)
+
+    def test_overlapping_windows_are_rejected(self) -> None:
+        self.write("train.csv", hours(2024, 3, 1.0))
+        self.write("validation.csv", hours(2024, 5, 2.0))
+        self.write("test.csv", hours(2025, 4, 3.0))
+
+        with self.assertRaisesRegex(DatasetError, "overlap"):
+            load_dataset_split(self.source)
+
+    def test_label_is_the_target_and_never_a_feature_and_timestamp_is_not_a_feature(self) -> None:
+        self.write_set(FULL_SPLIT_FILE_NAMES)
+        train = load_dataset_split(self.source).train
+
+        features = feature_matrix(train, geometry=False)
+
+        self.assertEqual(list(label_vector(train)), [row["actual_kwh"] for row in train])
+        self.assertNotIn("actual_kwh", FEATURE_COLUMNS)
+        self.assertNotIn("timestamp", FEATURE_COLUMNS)
+        self.assertEqual(features.shape, (len(train), len(FEATURE_COLUMNS)))
+        self.assertEqual(train[0]["timestamp"], "2023-01-15T00:00:00Z")
+        # Changing only the label leaves the feature matrix untouched.
+        relabeled = [{**row, "actual_kwh": row["actual_kwh"] + 5.0} for row in train]
+        self.assertTrue((feature_matrix(relabeled) == feature_matrix(train)).all())
 
 
 if __name__ == "__main__":
