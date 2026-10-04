@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadFrontendData } from "./frontend-data.server";
-import { getCandidateAngleRange, getPreviewAngle, getPreviewFarm, getPreviewRowIds, getRowSimulationView, getSimulationConditions } from "./farm-simulation";
+import { getCandidateAngleRange, getPreviewAngle, getPreviewFarm, getRowSimulationView, getSimulationConditions } from "./farm-simulation";
 import type { FrontendData } from "../types/solar";
 let data: FrontendData;
 beforeAll(async () => { data = await loadFrontendData(); });
@@ -16,20 +16,6 @@ describe("solar farm simulation view", () => {
     expect(preview.rows.find(row => row.row_id === "row-001")?.angle_deg).toBe(45);
     expect(preview.rows.filter(row => row.row_id !== "row-001")).toEqual(data.farm_status.rows.filter(row => row.row_id !== "row-001"));
   });
-  it("previews only the control row when no other row shares its action", () => expect(getPreviewRowIds(data)).toEqual(["row-001"]));
-  it("previews every row the payload marks with the same action, state and angle", () => {
-    const marked = { ...data, farm_status: { ...data.farm_status, rows: data.farm_status.rows.map(row => row.current_state === "READY" ? { ...row, action: "ROTATE" as const } : row) } };
-    const ready = data.farm_status.rows.filter(row => row.current_state === "READY").map(row => row.row_id);
-    expect(getPreviewRowIds(marked)).toEqual(ready);
-    const preview = getPreviewFarm(marked);
-    expect(preview.rows.filter(row => row.current_state === "READY").every(row => row.angle_deg === 45)).toBe(true);
-    expect(preview.rows.filter(row => row.current_state !== "READY").map(row => row.angle_deg)).toEqual(data.farm_status.rows.filter(row => row.current_state !== "READY").map(row => row.angle_deg));
-  });
-  it("does not preview a marked row that sits at a different angle", () => {
-    const marked = { ...data, farm_status: { ...data.farm_status, rows: data.farm_status.rows.map(row => row.row_id === "row-002" ? { ...row, action: "ROTATE" as const, angle_deg: 50 } : row) } };
-    expect(getPreviewRowIds(marked)).toEqual(["row-001"]);
-  });
-  it("previews no rows when the manager holds", () => expect(getPreviewRowIds({ ...data, decision: { action: "HOLD", target_angle_deg: 35, reason: "Blocked" } })).toEqual([]));
   it("never changes the validated payload", () => { getPreviewFarm(data); expect(data.farm_status.rows[0].angle_deg).toBe(35); });
   it("returns the same farm when nothing can be previewed", () => expect(getPreviewFarm({ ...data, decision: { action: "HOLD", target_angle_deg: 35, reason: "Blocked" } })).toBe(data.farm_status));
   it("describes the control target with its recommendation", () => expect(getRowSimulationView(data, "row-001")).toMatchObject({ isTarget: true, zoneName: "Zone 1", position: "Row 1 of 13", currentAngle: 35, recommendedAngle: 45, gain: "+0.29 kWh", horizon: "60 min" }));

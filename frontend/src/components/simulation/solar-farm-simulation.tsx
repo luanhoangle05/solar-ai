@@ -7,7 +7,7 @@ import { FarmMap } from "@/components/farm/farm-map";
 import { Farm3DLoader } from "@/components/farm-3d/farm-3d-loader";
 import { rowStatePresentation } from "@/config/row-states";
 import { getInitialSelection, getRowById, getZoneSelection } from "@/lib/farm";
-import { getCandidateAngleRange, getPreviewAngle, getPreviewFarm, getPreviewRowIds, getRowSimulationView, getSimulationConditions, type FarmSimulationData, type RowSimulationView } from "@/lib/farm-simulation";
+import { getCandidateAngleRange, getPreviewAngle, getPreviewFarm, getRowSimulationView, getSimulationConditions, type FarmSimulationData, type RowSimulationView } from "@/lib/farm-simulation";
 import { formatAngle } from "@/lib/formatters";
 import "@/app/(solar)/farm/farm.css";
 import "./solar-farm-simulation.css";
@@ -63,14 +63,14 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
           : <FarmMap {...sceneProps}/>}
       </div>
       {rowView
-        ? <RowPanel view={rowView} action={data.decision.action} previewAngle={previewAngle} previewRows={getPreviewRowIds(data).length} isPreviewing={isPreviewing} onPreview={setIsPreviewing}/>
+        ? <RowPanel view={rowView} action={data.decision.action} previewAngle={previewAngle} isPreviewing={isPreviewing} onPreview={setIsPreviewing}/>
         : <aside className="sfs-row"><p className="sfs-empty">No row available for inspection.</p></aside>}
     </div>
     <p className="sr-only" role="status">Inspecting {selection.rowId ?? "no row"}.{isPreviewing ? ` Previewing ${targetId} at ${formatAngle(previewAngle)}; no command is sent.` : ""}</p>
   </section>;
 }
 
-function RowPanel({ view, action, previewAngle, previewRows, isPreviewing, onPreview }: { view: RowSimulationView; action: string; previewAngle: number | null; previewRows: number; isPreviewing: boolean; onPreview: (value: boolean) => void }) {
+function RowPanel({ view, action, previewAngle, isPreviewing, onPreview }: { view: RowSimulationView; action: string; previewAngle: number | null; isPreviewing: boolean; onPreview: (value: boolean) => void }) {
   const { row } = view;
   const canPreview = view.isTarget && previewAngle !== null;
   const shownAngle = isPreviewing && canPreview ? previewAngle : view.currentAngle;
@@ -90,11 +90,11 @@ function RowPanel({ view, action, previewAngle, previewRows, isPreviewing, onPre
         ? <ul>{view.reasoning.map((line, index) => <li key={index}>{line}</li>)}</ul>
         : <p>This row is not the current optimization control target. No row-specific recommendation is supplied; it shows its recorded state ({row.current_state}) and recorded action ({row.action}).</p>}
       {canPreview && <button type="button" className="sfs-apply" aria-pressed={isPreviewing} onClick={() => onPreview(!isPreviewing)}>
-        {isPreviewing ? <><RotateCcw size={15} aria-hidden="true"/>Show recorded {formatAngle(view.currentAngle)}</> : <><Play size={15} aria-hidden="true"/>Preview {action} to {formatAngle(previewAngle)} on {previewRows > 1 ? `${previewRows} rows` : row.row_id}</>}
+        {isPreviewing ? <><RotateCcw size={15} aria-hidden="true"/>Show recorded {formatAngle(view.currentAngle)}</> : <><Play size={15} aria-hidden="true"/>Preview {action} to {formatAngle(previewAngle)} on {row.row_id}</>}
       </button>}
       {view.isTarget && !canPreview && <p>The manager decision is HOLD, so there is no movement to preview.</p>}
     </div>
-    <p className="sfs-note">{previewRows > 1 ? `The decision is computed for the control row; the payload shows the same action on ${previewRows} rows in the same state and at the same angle. ` : ""}Preview redraws the row on screen only. The payload records a proposed action; no controller command is sent or confirmed.</p>
+    <p className="sfs-note">Preview redraws the row on screen only. The payload records a proposed action; no controller command is sent or confirmed.</p>
   </aside>;
 }
 

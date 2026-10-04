@@ -34,25 +34,13 @@ export function getPreviewAngle(data: FarmSimulationData): number | null {
 }
 
 /**
- * The rows a preview moves: the control target, plus every row the payload shows with the same action,
- * state and recorded angle. The backend marks such rows when its decision applies to them equally.
- */
-export function getPreviewRowIds(data: FarmSimulationData): string[] {
-  const target = getRowById(data.farm_status, data.metadata.control_target_id);
-  if (getPreviewAngle(data) === null || !target) return [];
-  return data.farm_status.rows
-    .filter(row => row.row_id === target.row_id || (row.action === data.decision.action && row.current_state === target.current_state && row.angle_deg === target.angle_deg))
-    .map(row => row.row_id);
-}
-
-/**
- * A copy of the farm with the previewed rows drawn at the decided target angle.
+ * A copy of the farm with the control-target row drawn at the decided target angle.
  * Display only: the validated payload is never changed and no command is sent anywhere.
  */
 export function getPreviewFarm(data: FarmSimulationData): FarmStatus {
-  const angle = getPreviewAngle(data), moved = new Set(getPreviewRowIds(data));
-  if (angle === null || moved.size === 0) return data.farm_status;
-  return { ...data.farm_status, rows: data.farm_status.rows.map(row => moved.has(row.row_id) ? { ...row, angle_deg: angle } : row) };
+  const angle = getPreviewAngle(data), targetId = data.metadata.control_target_id;
+  if (angle === null) return data.farm_status;
+  return { ...data.farm_status, rows: data.farm_status.rows.map(row => row.row_id === targetId ? { ...row, angle_deg: angle } : row) };
 }
 
 /** Details for the inspected row. A recommendation exists only for the control target; other rows show their recorded state. */
