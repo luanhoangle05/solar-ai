@@ -9,7 +9,12 @@ export type CommandCenterAgent = {
   /** Shown while the recorded run is replayed; never a claim about a live process. */
   replayLabel: string;
   headline: string; lines: string[]; milestone: string;
+  /** The agent's LLM-written explanation recorded in the run log, when the run produced one. */
+  reasoning: string | null;
 };
+const LLM_REASONING_ACTION = "llm_reasoning";
+/** Data the Data Agent reported as usable; anything else is shown as unavailable. */
+const usableDataStatuses = ["VALID", "DEGRADED"];
 
 const titles: Record<AgentName, string> = { data: "Data Agent", modeling: "Modeling Agent", optimization: "Optimization Agent", manager: "Manager Agent" };
 const roles: Record<AgentName, string> = {
@@ -29,7 +34,7 @@ export function getCommandCenterView(data: FrontendData) {
   const currentAngle = optimization?.current_angle_deg ?? getControlTargetRow(data)?.angle_deg ?? null;
   const horizon = data.metadata.prediction_horizon_minutes;
   const available: Record<AgentName, boolean> = {
-    data: data.data_agent.status === "VALID" && weather !== null,
+    data: usableDataStatuses.includes(data.data_agent.status) && weather !== null,
     modeling: data.selected_model !== null && data.candidate_predictions.length > 0,
     optimization: optimization !== null,
     manager: true,
@@ -48,18 +53,21 @@ export function getCommandCenterView(data: FrontendData) {
   };
   const agents: CommandCenterAgent[] = agentOrder.map(agent => {
     const hasError = data.errors.some(error => error.agent === agent);
-    const latest = getAgentEvents(data, agent).at(-1);
+    const events = getAgentEvents(data, agent);
+    // The headline is the agent's last recorded step; the LLM's wording of the run is shown separately.
+    const latest = events.filter(event => !event.action.startsWith(LLM_REASONING_ACTION)).at(-1);
+    const reasoning = events.filter(event => event.action === LLM_REASONING_ACTION).at(-1)?.result ?? null;
     const status: AgentCardStatus = hasError ? "ISSUE" : available[agent] ? "COMPLETED" : "UNAVAILABLE";
     return {
       agent, title: titles[agent], role: roles[agent], replayLabel: replayLabels[agent], status,
       // The track label follows the recorded status, so it never claims a stage the payload does not support.
       milestone: status === "COMPLETED" ? milestones[agent] : status === "ISSUE" ? "Issue reported" : unavailableMilestones[agent],
       headline: agent === "manager" ? data.decision.reason : latest?.result ?? noActivity,
-      lines: lines[agent],
+      lines: lines[agent], reasoning,
     };
   });
   return {
-    agents,
+    agents, hasReasoning: agents.some(agent => agent.reasoning !== null),
     cycle: currentAngle === null ? `Target ${formatAngle(data.decision.target_angle_deg)}` : `${formatAngle(currentAngle)} → ${formatAngle(data.decision.target_angle_deg)}`,
     action: data.decision.action,
     gain: optimization ? `${formatSignedKwh(optimization.energy_gain_kwh)} / ${horizon} min` : "Unavailable",

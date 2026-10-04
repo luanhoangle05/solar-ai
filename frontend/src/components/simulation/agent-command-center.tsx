@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ArrowRight, Bot, ChartColumn, CircleCheck, Clock, Cog, Database, Hourglass, RotateCcw, ShieldCheck, TriangleAlert, Workflow, Zap } from "lucide-react";
+import { ArrowRight, Bot, ChartColumn, CircleCheck, Clock, Cog, Database, Hourglass, RotateCcw, ShieldCheck, Sparkles, TriangleAlert, Workflow, Zap } from "lucide-react";
 import type { AgentName } from "@/types/solar";
 import type { CommandCenterAgent, CommandCenterView } from "@/lib/command-center";
 import "./command-center.css";
@@ -41,6 +41,12 @@ export function AgentCommandCenter({ view }: { view: CommandCenterView }) {
           const phase = phaseOf(index);
           return <li key={agent.agent} data-phase={phase} data-status={agent.status}><span className="acc-node" aria-hidden="true">{phase === "done" && agent.status === "COMPLETED" && <CircleCheck size={18}/>}</span>{phase === "active" ? agent.replayLabel : agent.milestone}</li>;
         })}</ol>
+        {view.hasReasoning && <section className="acc-reasoning" aria-label="Agent reasoning">
+          <h3><Sparkles size={15} aria-hidden="true"/>Agent reasoning<small>Written by an LLM from each agent&apos;s recorded tool results. The figures and the decision come from the tools, not the LLM.</small></h3>
+          <ol>{view.agents.map((agent, index) => agent.reasoning && <li key={agent.agent} data-phase={phaseOf(index)}>
+            <strong>{agent.title}</strong><p>{phaseOf(index) === "done" ? agent.reasoning : phaseOf(index) === "active" ? "Reasoning…" : "Waiting for the previous agent in this replay."}</p>
+          </li>)}</ol>
+        </section>}
       </div>
       <aside className="acc-summary" aria-label="Cycle summary">
         <div><ChartColumn size={24} aria-hidden="true"/><span>Current cycle</span><strong>{view.cycle}</strong><small>{view.action}</small></div>

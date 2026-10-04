@@ -15,6 +15,29 @@ describe("agent command center view", () => {
   it("uses the latest recorded event as the headline", () => expect(agent(getCommandCenterView(data), "optimization").headline).toBe(data.agent_log.filter(event => event.agent === "optimization").at(-1)!.result));
   it("uses the decision reason for the manager headline", () => expect(agent(getCommandCenterView(data), "manager").headline).toBe(data.decision.reason));
   it("summarises the cycle and gain", () => expect(getCommandCenterView(data)).toMatchObject({ cycle: "35° → 45°", gain: "+0.29 kWh / 60 min", action: "ROTATE" }));
+  it("has no LLM reasoning when the run log holds none", () => {
+    const view = getCommandCenterView(data);
+    expect(view.hasReasoning).toBe(false);
+    expect(view.agents.map(card => card.reasoning)).toEqual([null, null, null, null]);
+  });
+  it("shows an agent's recorded LLM reasoning and keeps its last tool step as the headline", () => {
+    const last = data.agent_log.filter(event => event.agent === "optimization").at(-1)!;
+    const explained = { ...data, agent_log: [...data.agent_log, { timestamp: "2026-06-21T19:30:00Z", agent: "optimization" as const, action: "llm_reasoning", result: "Moving is worth it." }] };
+    const view = getCommandCenterView(explained);
+    expect(view.hasReasoning).toBe(true);
+    expect(agent(view, "optimization")).toMatchObject({ reasoning: "Moving is worth it.", headline: last.result });
+    expect(agent(view, "modeling").reasoning).toBeNull();
+  });
+  it("does not present an unavailable LLM explanation as reasoning", () => {
+    const view = getCommandCenterView({ ...data, agent_log: [...data.agent_log, { timestamp: "2026-06-21T19:30:00Z", agent: "manager" as const, action: "llm_reasoning_unavailable", result: "No LLM explanation for this stage." }] });
+    expect(agent(view, "manager").reasoning).toBeNull();
+  });
+  it("counts degraded but usable data as collected and still shows its quality", () => {
+    const view = getCommandCenterView({ ...data, data_agent: { ...data.data_agent, status: "DEGRADED", issues: ["replayed hour"] } });
+    expect(agent(view, "data")).toMatchObject({ status: "COMPLETED" });
+    expect(agent(view, "data").lines[1]).toBe("Data quality: DEGRADED");
+  });
+  it("shows invalid data as unavailable", () => expect(agent(getCommandCenterView({ ...data, data_agent: { ...data.data_agent, status: "INVALID", forecast_age_minutes: null, issues: ["unknown issue time"] } }), "data").status).toBe("UNAVAILABLE"));
   it("never claims the panel moved", () => expect(getCommandCenterView(data).execution.status).toBe("Not confirmed"));
   it("labels recorded milestones", () => expect(getCommandCenterView(data).agents.map(card => card.milestone)).toEqual(["Data collected", "Modeling complete", "Angle optimized", "Decision recorded"]));
   it("marks missing optimization unavailable without inventing a gain", () => {

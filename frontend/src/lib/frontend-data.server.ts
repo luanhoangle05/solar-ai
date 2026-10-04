@@ -33,6 +33,22 @@ export type FrontendDataLoadResult =
       error: FrontendDataLoadError;
     };
 
+/** Set to a JSON file (absolute, or relative to the repository root) to show a generated run instead of the mock fixture. */
+export const FRONTEND_DATA_PATH_VARIABLE = "SOLAR_FRONTEND_DATA";
+
+/** The payload file the app shows: the configured generated run when one is set, otherwise the mock fixture. */
+export function resolveFrontendDataPath(
+  environment: Record<string, string | undefined> = process.env,
+): string {
+  const configured = environment[FRONTEND_DATA_PATH_VARIABLE]?.trim();
+  if (!configured) {
+    return resolveMockFrontendDataPath();
+  }
+  return path.isAbsolute(configured)
+    ? configured
+    : path.resolve(process.cwd(), "..", configured);
+}
+
 export function resolveMockFrontendDataPath(): string {
   // npm commands are run from /frontend. Keeping the fixture in /data avoids
   // duplicating the shared contract inside the web app.
@@ -97,7 +113,7 @@ export async function loadFrontendData(
 }
 
 export async function loadFrontendDataResult(
-  filePath = resolveMockFrontendDataPath(),
+  filePath = resolveFrontendDataPath(),
 ): Promise<FrontendDataLoadResult> {
   try {
     return {
