@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-04T11:53:35Z",
+  "timestamp": "2026-10-04T11:41:56Z",
   "metadata": {
     "schema_version": "0.1.0",
     "dataset_kind": "LIVE",
@@ -16,7 +16,6 @@
       "Model comparison metrics are computed on the chronological validation window; the test window is held out.",
       "Control commands are simulation-only; no hardware is moved.",
       "SIMULATED FARM SNAPSHOT: no row telemetry exists yet, so every row is shown READY at the control row's current angle.",
-      "The decision is computed for the control row only. Rows in the same state and at the same angle are shown with the same action because the models have no per-row inputs; it was not computed for them separately.",
       "No decision history is stored yet; the history list is empty rather than filled with examples."
     ]
   },
@@ -253,7 +252,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-003",
@@ -261,7 +260,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-004",
@@ -269,7 +268,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-005",
@@ -277,7 +276,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-006",
@@ -285,7 +284,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-007",
@@ -293,7 +292,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-008",
@@ -301,7 +300,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-009",
@@ -309,7 +308,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-010",
@@ -317,7 +316,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-011",
@@ -325,7 +324,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-012",
@@ -333,7 +332,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-013",
@@ -341,7 +340,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-014",
@@ -349,7 +348,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-015",
@@ -357,7 +356,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-016",
@@ -365,7 +364,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-017",
@@ -373,7 +372,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-018",
@@ -381,7 +380,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-019",
@@ -389,7 +388,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-020",
@@ -397,7 +396,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-021",
@@ -405,7 +404,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-022",
@@ -413,7 +412,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-023",
@@ -421,7 +420,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-024",
@@ -429,7 +428,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-025",
@@ -437,7 +436,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-026",
@@ -445,7 +444,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-027",
@@ -453,7 +452,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-028",
@@ -461,7 +460,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-029",
@@ -469,7 +468,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-030",
@@ -477,7 +476,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-031",
@@ -485,7 +484,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-032",
@@ -493,7 +492,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-033",
@@ -501,7 +500,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-034",
@@ -509,7 +508,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-035",
@@ -517,7 +516,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-036",
@@ -525,7 +524,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-037",
@@ -533,7 +532,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-038",
@@ -541,7 +540,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-039",
@@ -549,7 +548,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-040",
@@ -557,7 +556,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-041",
@@ -565,7 +564,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-042",
@@ -573,7 +572,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-043",
@@ -581,7 +580,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-044",
@@ -589,7 +588,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-045",
@@ -597,7 +596,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-046",
@@ -605,7 +604,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-047",
@@ -613,7 +612,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-048",
@@ -621,7 +620,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-049",
@@ -629,7 +628,7 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       },
       {
         "row_id": "row-050",
@@ -637,88 +636,88 @@
         "panel_count": 20,
         "angle_deg": 60.0,
         "current_state": "READY",
-        "action": "ROTATE"
+        "action": "HOLD"
       }
     ]
   },
   "agent_log": [
     {
-      "timestamp": "2026-10-04T11:53:35Z",
+      "timestamp": "2026-10-04T11:41:56Z",
       "agent": "data",
       "action": "weather_received",
       "result": "Recorded weather for 2025-06-05T19:00:00Z read from gem_2023_2025 (LIVE, labels physics-derived)"
     },
     {
-      "timestamp": "2026-10-04T11:53:35Z",
+      "timestamp": "2026-10-04T11:41:56Z",
       "agent": "data",
       "action": "data_quality",
       "result": "Recorded dataset hour served as the current forecast; forecast age is assumed to be zero, not measured."
     },
     {
-      "timestamp": "2026-10-04T11:57:30Z",
+      "timestamp": "2026-10-04T11:45:52Z",
       "agent": "modeling",
       "action": "comparison",
-      "result": "Validation-window metrics in kWh. linear_regression: UNAVAILABLE; random_forest: UNAVAILABLE; boosting (xgboost): RMSE 0.03583, MAE 0.01678, R2 0.999775; lstm (pytorch): RMSE 0.009265, MAE 0.004843, R2 0.999985"
+      "result": "Validation-window metrics in kWh. linear_regression: UNAVAILABLE; random_forest: UNAVAILABLE; boosting (xgboost): RMSE 0.03583, MAE 0.01678, R2 0.9998; lstm (pytorch): RMSE 0.009265, MAE 0.004843, R2 1"
     },
     {
-      "timestamp": "2026-10-04T11:57:30Z",
+      "timestamp": "2026-10-04T11:45:52Z",
       "agent": "modeling",
       "action": "selection",
       "result": "Selected lstm (pytorch): lowest validation RMSE 0.009265 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm."
     },
     {
-      "timestamp": "2026-10-04T11:57:30Z",
+      "timestamp": "2026-10-04T11:45:52Z",
       "agent": "modeling",
       "action": "prediction",
       "result": "Predicted row energy for the next hour at 7 angles (stay angle 60 deg included): 30 deg -> 7.867 kWh; 35 deg -> 7.845 kWh; 40 deg -> 7.778 kWh; 45 deg -> 7.667 kWh; 50 deg -> 7.510 kWh; 55 deg -> 7.307 kWh; 60 deg -> 7.059 kWh"
     },
     {
-      "timestamp": "2026-10-04T11:57:32Z",
+      "timestamp": "2026-10-04T11:45:54Z",
       "agent": "modeling",
       "action": "llm_reasoning",
-      "result": "The lstm model was selected as the best performer because it achieved the lowest validation RMSE of 0.009265 kWh among the two available models, with superior metrics across all three measures. The model predicts that adjusting the panel angle to thirty deg would yield the highest energy output at 7.867 kWh for the next hour, while remaining at the current stay angle of 60 deg would produce 7.059 kWh."
+      "result": "The tools evaluated four candidate models and found that two were unavailable, while the lstm model achieved the best validation performance with RMSE 0.009265 kWh and R2 1, outperforming boosting's RMSE 0.03583 kWh. The selected lstm model then generated predictions for seven candidate panel angles, showing that a thirty-degree angle is recommended to maximize the next hour's energy output at 7.867 kWh, with energy production declining as angles increase toward the current stay position of sixty degrees."
     },
     {
-      "timestamp": "2026-10-04T11:57:32Z",
+      "timestamp": "2026-10-04T11:45:54Z",
       "agent": "optimization",
       "action": "candidate_comparison",
       "result": "Stay at 60 deg predicts 7.059 kWh. 30 deg -> 7.867 kWh, cost 0.090, net +0.718; 35 deg -> 7.845 kWh, cost 0.075, net +0.710; 40 deg -> 7.778 kWh, cost 0.060, net +0.659; 45 deg -> 7.667 kWh, cost 0.045, net +0.562; 50 deg -> 7.510 kWh, cost 0.030, net +0.420; 55 deg -> 7.307 kWh, cost 0.015, net +0.233; 60 deg -> 7.059 kWh, cost 0.000, net +0.000"
     },
     {
-      "timestamp": "2026-10-04T11:57:32Z",
+      "timestamp": "2026-10-04T11:45:54Z",
       "agent": "optimization",
       "action": "recommendation",
       "result": "Best net benefit is 30 deg: +0.808 kWh gain - 0.090 movement cost = +0.718 kWh-eq versus staying at 60 deg. The Manager Agent decides whether this clears safety and the threshold."
     },
     {
-      "timestamp": "2026-10-04T11:57:34Z",
+      "timestamp": "2026-10-04T11:45:56Z",
       "agent": "optimization",
       "action": "llm_reasoning",
-      "result": "The tools evaluated seven candidate panel angles and found that moving from the current 60 deg angle to 30 deg would deliver the highest net benefit of +0.7182 kWh-eq, since the energy gain of 0.808 kWh exceeds the movement cost of 0.0900 kWh-eq. A simulated adjustment to 30 deg is recommended, pending approval by the Manager Agent for safety clearance and threshold verification."
+      "result": "The tools evaluated seven candidate panel angles and found that moving to 30 deg delivers the highest net benefit of +0.7182 kWh-eq after accounting for a movement cost of 0.0900 kWh-eq. This outcome follows because the energy gain from the angle adjustment of +0.808 kWh exceeds the travel cost, making the move more advantageous than remaining at the current stay angle of 60 deg."
     },
     {
-      "timestamp": "2026-10-04T11:57:34Z",
+      "timestamp": "2026-10-04T11:45:56Z",
       "agent": "manager",
       "action": "safety",
       "result": "All 6 safety checks passed"
     },
     {
-      "timestamp": "2026-10-04T11:57:34Z",
+      "timestamp": "2026-10-04T11:45:56Z",
       "agent": "manager",
       "action": "decision",
       "result": "Rotate to 30 deg: net benefit +0.7182 kWh-eq exceeds the 0.02 kWh-eq threshold and all safety checks passed."
     },
     {
-      "timestamp": "2026-10-04T11:57:34Z",
+      "timestamp": "2026-10-04T11:45:56Z",
       "agent": "manager",
       "action": "dispatch",
       "result": "SIMULATION: Simulated ROTATE for row-001 to 30 deg; no hardware moved"
     },
     {
-      "timestamp": "2026-10-04T11:57:35Z",
+      "timestamp": "2026-10-04T11:45:58Z",
       "agent": "manager",
       "action": "llm_reasoning",
-      "result": "All six safety checks passed, including wind conditions at 5 km/h with gusts of 23 km/h, a target angle of 30 deg within acceptable limits, and validation of the lstm model with RMSE 0.009265 kWh. The system simulated a rotation of row-001 to 30 deg because the net benefit of +0.7182 kWh-eq exceeds the 0.02 kWh-eq threshold and all safety criteria were satisfied."
+      "result": "All six safety checks passed, including wind conditions (5 km/h wind and 23 km/h gust within the 50/70 km/h limits), target angle validation, and panel readiness. The system recommends a simulated rotation of row-001 to 30 degrees because the net energy benefit of +0.7182 kWh-eq exceeds the 0.02 kWh-eq threshold and the lstm model validation (RMSE 0.009265 kWh) supports the decision."
     }
   ],
   "history": [],
