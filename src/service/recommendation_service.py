@@ -22,7 +22,7 @@ from src.agents.optimization_agent import OptimizationAgent
 from src.agents.orchestrator import Orchestrator
 from src.agents.reasoning import Reasoner
 from src.agents.trace import Clock, TraceRecorder, utc_now_iso
-from src.common.agent_contracts import DataAgentUpdate, OrchestratorContract
+from src.common.agent_contracts import DataAgentContract, DataAgentUpdate, OrchestratorContract
 from src.common.config import ENERGY_SCOPE, PANELS_PER_ROW, PREDICTION_HORIZON_MINUTES, SCHEMA_VERSION, TOTAL_PANELS, ZONE_ROW_COUNTS, SimulationConfig
 from src.common.schema import MODEL_NAMES, AgentState, FarmStatus, FrontendData, Metadata, WeatherFeatures, validate_frontend_data
 from src.common.tool_contracts import ToolError
@@ -175,6 +175,42 @@ def simulated_farm_status(angle_deg: float) -> FarmStatus:
     return {"total_panels": TOTAL_PANELS, "zones": zones, "rows": rows}
 
 
+def run_recommendation(
+    source: DatasetSource,
+    data_agent: DataAgentContract,
+    modeling_tools: EvaluatedModelingTools,
+    config: SimulationConfig,
+    *,
+    interval_start: str,
+    current_angle_deg: float,
+    control_target_id: str,
+    run_id: str,
+    extra_assumptions: Sequence[str] = (),
+    reasoner: Reasoner | None = None,
+    clock: Clock = utc_now_iso,
+) -> FrontendData:
+    """One full run, Data -> Modeling -> Optimization -> Manager, with the given Data Agent.
+
+    `source` is the dataset the models were trained on; it labels the payload.
+    The farm snapshot is simulated and the payload's assumptions say so.
+    `reasoner` adds LLM-worded explanations to the agent log; it cannot change any result.
+    """
+    farm = simulated_farm_status(current_angle_deg)
+    row_states = {row["row_id"]: {"angle_deg": row["angle_deg"], "current_state": row["current_state"]} for row in farm["rows"]}
+    agents = build_agents(modeling_tools, config, row_status=row_states.__getitem__, clock=clock, reasoner=reasoner)
+    orchestrator = Orchestrator(data_agent, agents.modeling, agents.optimization, agents.manager, farm_status=lambda: farm)
+    metadata = build_metadata(
+        source, interval_start=interval_start, control_target_id=control_target_id, config=config,
+        extra_assumptions=(*extra_assumptions, SIMULATED_FARM_ASSUMPTION, NO_HISTORY_ASSUMPTION),
+    )
+    state: AgentState = {
+        "run_id": run_id, "timestamp": clock(), "metadata": metadata, "stage": "PENDING",
+        "weather": None, "data": None, "modeling": None, "optimization": None, "safety": None, "decision": None,
+        "agent_log": [], "tool_calls": [], "errors": [],
+    }
+    return get_recommendation(state, orchestrator)
+
+
 def recommend_for_recorded_hour(
     source: DatasetSource,
     weather: WeatherFeatures,
@@ -186,28 +222,12 @@ def recommend_for_recorded_hour(
     reasoner: Reasoner | None = None,
     clock: Clock = utc_now_iso,
 ) -> FrontendData:
-    """One full run, Data -> Modeling -> Optimization -> Manager, for one recorded hour at the angle in `weather`.
-
-    Uses the two stand-ins above and says so in the payload's assumptions.
-    `reasoner` adds LLM-worded explanations to the agent log; it cannot change any result.
-    """
-    farm = simulated_farm_status(weather["panel_angle_deg"])
-    row_states = {row["row_id"]: {"angle_deg": row["angle_deg"], "current_state": row["current_state"]} for row in farm["rows"]}
-    agents = build_agents(modeling_tools, config, row_status=row_states.__getitem__, clock=clock, reasoner=reasoner)
-    orchestrator = Orchestrator(
-        RecordedWeatherDataAgent(weather, source, clock=clock), agents.modeling, agents.optimization, agents.manager,
-        farm_status=lambda: farm,
+    """A full run for one recorded dataset hour at the angle in `weather`, using the recorded-weather stand-in."""
+    return run_recommendation(
+        source, RecordedWeatherDataAgent(weather, source, clock=clock), modeling_tools, config,
+        interval_start=weather["timestamp"], current_angle_deg=weather["panel_angle_deg"],
+        control_target_id=control_target_id, run_id=run_id, reasoner=reasoner, clock=clock,
     )
-    metadata = build_metadata(
-        source, interval_start=weather["timestamp"], control_target_id=control_target_id, config=config,
-        extra_assumptions=(SIMULATED_FARM_ASSUMPTION, NO_HISTORY_ASSUMPTION),
-    )
-    state: AgentState = {
-        "run_id": run_id, "timestamp": clock(), "metadata": metadata, "stage": "PENDING",
-        "weather": None, "data": None, "modeling": None, "optimization": None, "safety": None, "decision": None,
-        "agent_log": [], "tool_calls": [], "errors": [],
-    }
-    return get_recommendation(state, orchestrator)
 
 
 def replay_test_window(
