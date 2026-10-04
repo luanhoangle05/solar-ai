@@ -50,6 +50,7 @@ COMMON_ASSUMPTIONS = (
 )
 RECORDED_WEATHER_ISSUE = "Recorded dataset hour served as the current forecast; forecast age is assumed to be zero, not measured."
 SIMULATED_FARM_ASSUMPTION = "SIMULATED FARM SNAPSHOT: no row telemetry exists yet, so every row is shown READY at the control row's current angle."
+MATCHING_ROWS_ASSUMPTION = "The decision is computed for the control row only. Rows in the same state and at the same angle are shown with the same action because the models have no per-row inputs; it was not computed for them separately."
 NO_HISTORY_ASSUMPTION = "No decision history is stored yet; the history list is empty rather than filled with examples."
 
 
@@ -201,14 +202,32 @@ def run_recommendation(
     orchestrator = Orchestrator(data_agent, agents.modeling, agents.optimization, agents.manager, farm_status=lambda: farm)
     metadata = build_metadata(
         source, interval_start=interval_start, control_target_id=control_target_id, config=config,
-        extra_assumptions=(*extra_assumptions, SIMULATED_FARM_ASSUMPTION, NO_HISTORY_ASSUMPTION),
+        extra_assumptions=(*extra_assumptions, SIMULATED_FARM_ASSUMPTION, MATCHING_ROWS_ASSUMPTION, NO_HISTORY_ASSUMPTION),
     )
     state: AgentState = {
         "run_id": run_id, "timestamp": clock(), "metadata": metadata, "stage": "PENDING",
         "weather": None, "data": None, "modeling": None, "optimization": None, "safety": None, "decision": None,
         "agent_log": [], "tool_calls": [], "errors": [],
     }
-    return get_recommendation(state, orchestrator)
+    payload = mark_matching_rows(get_recommendation(state, orchestrator))
+    validate_frontend_data(payload)
+    return payload
+
+
+def mark_matching_rows(payload: FrontendData) -> FrontendData:
+    """Show the control row's action on every row in the same state and at the same angle.
+
+    Returns a new payload; no angle changes and no decision is computed for the
+    other rows. With no per-row model inputs they would receive the same answer,
+    which the payload's assumptions state. Rows that differ are left as they are.
+    """
+    rows = payload["farm_status"]["rows"]
+    target = next(row for row in rows if row["row_id"] == payload["metadata"]["control_target_id"])
+    marked = [
+        {**row, "action": target["action"]} if (row["current_state"], row["angle_deg"]) == (target["current_state"], target["angle_deg"]) else row
+        for row in rows
+    ]
+    return {**payload, "farm_status": {**payload["farm_status"], "rows": marked}}
 
 
 def recommend_for_recorded_hour(

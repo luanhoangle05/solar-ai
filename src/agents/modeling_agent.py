@@ -82,9 +82,10 @@ def _require_valid_predictions(predictions: list[CandidatePrediction], angles: t
 
 
 def _describe_comparison(comparison: list[ModelMetrics]) -> str:
+    # R2 keeps six significant digits: four would print a near-perfect fit as exactly 1.
     parts = [
         f"{entry['model']}: UNAVAILABLE" if entry["status"] == "UNAVAILABLE"
-        else f"{entry['model']} ({entry['implementation']}): RMSE {entry['rmse']:.4g}, MAE {entry['mae']:.4g}, R2 {entry['r2']:.4g}"
+        else f"{entry['model']} ({entry['implementation']}): RMSE {entry['rmse']:.4g}, MAE {entry['mae']:.4g}, R2 {entry['r2']:.6g}"
         for entry in comparison
     ]
     return "Validation-window metrics in kWh. " + "; ".join(parts)
