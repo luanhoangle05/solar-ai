@@ -72,7 +72,7 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
 
 function RowPanel({ view, action, previewAngle, previewRows, isPreviewing, onPreview }: { view: RowSimulationView; action: string; previewAngle: number | null; previewRows: number; isPreviewing: boolean; onPreview: (value: boolean) => void }) {
   const { row } = view;
-  const canPreview = view.isTarget && previewAngle !== null;
+  const canPreview = view.appliesDecision && previewAngle !== null;
   const shownAngle = isPreviewing && canPreview ? previewAngle : view.currentAngle;
   return <aside className="sfs-row" aria-label="Selected row">
     <div className="sfs-row-head"><span className="sfs-dot" data-target={view.isTarget} aria-hidden="true"/><div><h3>Selected Row: {row.row_id}</h3><p>{view.zoneName} <i/> {view.position}</p></div>
@@ -88,11 +88,11 @@ function RowPanel({ view, action, previewAngle, previewRows, isPreviewing, onPre
       <h4><Settings2 size={15} aria-hidden="true"/>Agent reasoning for this row</h4>
       {view.reasoning.length
         ? <ul>{view.reasoning.map((line, index) => <li key={index}>{line}</li>)}</ul>
-        : <p>This row is not the current optimization control target. No row-specific recommendation is supplied; it shows its recorded state ({row.current_state}) and recorded action ({row.action}).</p>}
+        : <p>No recommendation is shown for this row: it is not the control target and does not share its state, angle and action. It shows its recorded state ({row.current_state}) and recorded action ({row.action}).</p>}
       {canPreview && <button type="button" className="sfs-apply" aria-pressed={isPreviewing} onClick={() => onPreview(!isPreviewing)}>
         {isPreviewing ? <><RotateCcw size={15} aria-hidden="true"/>Show recorded {formatAngle(view.currentAngle)}</> : <><Play size={15} aria-hidden="true"/>Preview {action} to {formatAngle(previewAngle)} on {previewRows > 1 ? `${previewRows} rows` : row.row_id}</>}
       </button>}
-      {view.isTarget && !canPreview && <p>The manager decision is HOLD, so there is no movement to preview.</p>}
+      {view.appliesDecision && !canPreview && <p>The manager decision is HOLD, so there is no movement to preview.</p>}
     </div>
     <p className="sfs-note">{previewRows > 1 ? `The decision is computed for the control row; the payload shows the same action on ${previewRows} rows in the same state and at the same angle. ` : ""}Preview redraws the row on screen only. The payload records a proposed action; no controller command is sent or confirmed.</p>
   </aside>;

@@ -43,6 +43,19 @@ describe("solar farm simulation view", () => {
     const other = data.farm_status.rows.find(row => row.row_id !== "row-001")!;
     expect(getRowSimulationView(data, other.row_id)).toMatchObject({ isTarget: false, recommendedAngle: null, gain: null, reasoning: [], currentAngle: other.angle_deg });
   });
+  it("shows the control row's recommendation and reasoning on a row that shares its action, state and angle", () => {
+    const marked = { ...data, farm_status: { ...data.farm_status, rows: data.farm_status.rows.map(row => row.row_id === "row-002" ? { ...row, action: "ROTATE" as const } : row) } };
+    const view = getRowSimulationView(marked, "row-002")!;
+    expect(view).toMatchObject({ isTarget: false, appliesDecision: true, recommendedAngle: 45, gain: "+0.29 kWh" });
+    expect(view.reasoning[0]).toBe("Same state and angle as control row row-001, so its decision is shown here; it was not computed separately for this row.");
+    expect(view.reasoning.slice(1)).toEqual(getRowSimulationView(marked, "row-001")!.reasoning);
+  });
+  it("shows no recommendation on a marked row in a different state", () => {
+    const stowed = data.farm_status.rows.find(row => row.current_state === "STOWED")!;
+    const marked = { ...data, farm_status: { ...data.farm_status, rows: data.farm_status.rows.map(row => row.row_id === stowed.row_id ? { ...row, action: "ROTATE" as const } : row) } };
+    expect(getRowSimulationView(marked, stowed.row_id)).toMatchObject({ appliesDecision: false, recommendedAngle: null, reasoning: [] });
+  });
+  it("marks the control target as carrying the decision", () => expect(getRowSimulationView(data, "row-001")).toMatchObject({ isTarget: true, appliesDecision: true }));
   it("says so when the target has no optimization result", () => expect(getRowSimulationView({ ...data, optimization: null }, "row-001")).toMatchObject({ recommendedAngle: null, gain: null, reasoning: expect.arrayContaining(["No optimization result was supplied for this run."]) }));
   it("takes the tracking range from the evaluated candidate angles", () => expect(getCandidateAngleRange(data)).toEqual({ minDeg: 30, maxDeg: 60 }));
   it("offers no tracking range without candidates", () => expect(getCandidateAngleRange({ candidate_predictions: [] })).toBeNull());
