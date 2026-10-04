@@ -1,13 +1,14 @@
 """Owner: Duy. LSTM adapter (PyTorch) behind the stable model ID `lstm`.
 
-Each prediction reads a short window of hourly feature rows that ENDS at the
-hour being predicted: the previous `sequence_length - 1` hours of recorded
-features, then the current hour with the candidate panel angle. No row after
-the prediction hour is ever read, and the label `actual_kwh` is never an input.
+Each prediction reads a short window of hourly steps that ENDS at the hour being
+predicted: the weather of up to `sequence_length - 1` directly preceding hours,
+then the current hour. Every step carries the panel angle being evaluated, so a
+window answers "what if the row sat at this angle through these hours". No hour
+after the prediction hour is ever read, and the label `actual_kwh` is never an input.
 
-Limitation: the adapter needs the preceding hours in its history store. Asked
-about an hour whose history it does not hold, it raises ToolError rather than
-guessing, and the Modeling Agent reports the failure.
+Preceding hours that are not available (start of a data block, a gap, or a live
+forecast with no stored history) are left as padding steps, marked by a validity
+flag the network sees. Missing history is never filled with invented weather.
 """
 
 import copy
@@ -21,13 +22,17 @@ from torch import nn
 
 from src.common.schema import CandidatePrediction, Metadata, WeatherFeatures, WeatherRow
 from src.common.tool_contracts import ToolError
-from src.models.advanced.features import MODEL_FEATURE_NAMES, at_candidate_angles, feature_matrix, label_vector
+from src.models.advanced.features import MODEL_FEATURE_NAMES, PANEL_ANGLE_COLUMN, at_candidate_angles, feature_matrix, label_vector
 
 
 MODEL_NAME = "lstm"
 IMPLEMENTATION = "pytorch"
 STEP = timedelta(hours=1)
 MIN_FEATURE_STD = 1e-6
+# Model features plus one validity flag per step (1 = real hour, 0 = padding).
+STEP_WIDTH = len(MODEL_FEATURE_NAMES) + 1
+
+HourlyHistory = Mapping[datetime, WeatherFeatures]
 
 
 @dataclass(frozen=True)
@@ -59,41 +64,68 @@ class FeatureScaler:
 
 
 @dataclass(frozen=True)
-class SequenceSet:
-    """`inputs[k]` is the window ending at `rows[target_indices[k]]`."""
+class Windows:
+    """`features[k]` holds the unscaled steps ending at target k; `valid[k]` flags its real steps."""
 
-    inputs: np.ndarray
-    target_indices: tuple[int, ...]
+    features: np.ndarray
+    valid: np.ndarray
 
 
 def parse_timestamp(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def build_sequences(rows: Sequence[WeatherFeatures], sequence_length: int, *, first_target: int = 0) -> SequenceSet:
-    """Windows of consecutive hourly rows, each ending at its own target row.
+def hourly_history(rows: Sequence[WeatherFeatures]) -> dict[datetime, WeatherFeatures]:
+    """Weather by hour for look-back; rows sharing an hour differ only in panel angle."""
+    history: dict[datetime, WeatherFeatures] = {}
+    for row in rows:
+        history.setdefault(parse_timestamp(row["timestamp"]), row)
+    return history
 
-    A target is skipped when it lacks `sequence_length - 1` directly preceding
-    hourly rows (start of data or a gap). `first_target` limits which rows may be
-    targets while still letting their windows reach back into earlier rows.
+
+def build_windows(targets: Sequence[WeatherFeatures], history: HourlyHistory, sequence_length: int) -> Windows:
+    """One window per target: its directly preceding hours from `history`, then the target itself.
+
+    Only hours strictly before a target are read, and only while they are
+    consecutive; earlier steps stay as padding. History steps take the target's
+    panel angle. Labels present on any row are ignored.
     """
     if sequence_length < 1:
         raise ValueError("sequence_length must be at least 1")
-    features = feature_matrix(rows)
-    instants = [parse_timestamp(row["timestamp"]) for row in rows]
-    targets = tuple(
-        index for index in range(max(first_target, sequence_length - 1), len(rows))
-        if all(instants[position] - instants[position - 1] == STEP for position in range(index - sequence_length + 2, index + 1))
-    )
-    windows = [features[index - sequence_length + 1:index + 1] for index in targets]
-    inputs = np.stack(windows) if windows else np.empty((0, sequence_length, len(MODEL_FEATURE_NAMES)))
-    return SequenceSet(inputs=inputs, target_indices=targets)
+    steps: list[WeatherFeatures] = []
+    valid = np.zeros((len(targets), sequence_length), dtype=bool)
+    for index, target in enumerate(targets):
+        try:
+            instant = parse_timestamp(target["timestamp"])
+        except (KeyError, ValueError, AttributeError) as exc:
+            raise ToolError(f"LSTM cannot parse the prediction timestamp: {exc!r}") from exc
+        preceding = _preceding_hours(instant, history, sequence_length - 1)
+        padding = sequence_length - 1 - len(preceding)
+        angle = target[PANEL_ANGLE_COLUMN]
+        # Padding slots reuse the target row only to keep the matrix rectangular; they are zeroed by `valid`.
+        steps.extend([target] * padding)
+        steps.extend({**hour, PANEL_ANGLE_COLUMN: angle} for hour in preceding)
+        steps.append(target)
+        valid[index, padding:] = True
+    features = feature_matrix(steps).reshape(len(targets), sequence_length, len(MODEL_FEATURE_NAMES))
+    return Windows(features=features, valid=valid)
+
+
+def _preceding_hours(instant: datetime, history: HourlyHistory, limit: int) -> list[WeatherFeatures]:
+    """Up to `limit` consecutive hours ending just before `instant`, oldest first."""
+    preceding: list[WeatherFeatures] = []
+    for back in range(1, limit + 1):
+        hour = history.get(instant - STEP * back)
+        if hour is None:
+            break
+        preceding.append(hour)
+    return preceding[::-1]
 
 
 class _Network(nn.Module):
-    def __init__(self, feature_count: int, hidden_size: int) -> None:
+    def __init__(self, step_width: int, hidden_size: int) -> None:
         super().__init__()
-        self.lstm = nn.LSTM(feature_count, hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(step_width, hidden_size, batch_first=True)
         self.head = nn.Linear(hidden_size, 1)
 
     def forward(self, windows: torch.Tensor) -> torch.Tensor:
@@ -106,28 +138,13 @@ class LstmPredictor:
 
     implementation = IMPLEMENTATION
 
-    def __init__(self, network: _Network, scaler: FeatureScaler, history: Mapping[datetime, np.ndarray], sequence_length: int) -> None:
+    def __init__(self, network: _Network, scaler: FeatureScaler, history: HourlyHistory, sequence_length: int) -> None:
         self._network, self._scaler, self._history, self._sequence_length = network, scaler, history, sequence_length
 
     def predict_kwh(self, weather: WeatherFeatures, candidate_angles_deg: tuple[float, ...], *, metadata: Metadata) -> list[CandidatePrediction]:
-        past = self._history_before(weather["timestamp"])
-        current = feature_matrix(at_candidate_angles(weather, candidate_angles_deg))
-        windows = np.stack([np.vstack([past, row]) for row in current]) if len(current) else np.empty((0, self._sequence_length, len(MODEL_FEATURE_NAMES)))
+        windows = build_windows(at_candidate_angles(weather, candidate_angles_deg), self._history, self._sequence_length)
         predicted = _predict(self._network, self._scaler, windows)
         return [{"angle_deg": angle, "predicted_kwh": max(0.0, float(value))} for angle, value in zip(candidate_angles_deg, predicted)]
-
-    def _history_before(self, timestamp: str) -> np.ndarray:
-        """Feature rows for the hours strictly before `timestamp`, oldest first."""
-        try:
-            now = parse_timestamp(timestamp)
-        except (ValueError, AttributeError) as exc:
-            raise ToolError(f"LSTM cannot parse the prediction timestamp {timestamp!r}") from exc
-        hours_back = range(self._sequence_length - 1, 0, -1)
-        missing = [now - STEP * back for back in hours_back if now - STEP * back not in self._history]
-        if missing:
-            raise ToolError(f"LSTM history is missing {len(missing)} of the {self._sequence_length - 1} hours before {timestamp}")
-        rows = [self._history[now - STEP * back] for back in hours_back]
-        return np.array(rows).reshape(self._sequence_length - 1, len(MODEL_FEATURE_NAMES))
 
 
 def train_lstm(
@@ -136,27 +153,23 @@ def train_lstm(
     history_rows: Sequence[WeatherFeatures],
     config: LstmConfig = DEFAULT_LSTM_CONFIG,
 ) -> LstmPredictor:
-    """Fit on `train_rows`, stop early on `early_stopping_rows` (which must directly follow them).
+    """Fit on `train_rows`, stop early on `early_stopping_rows` (which must follow them in time).
 
-    `history_rows` supplies recorded features (never labels) that the adapter may
-    look back on at prediction time; only hours before the predicted hour are read.
+    Training windows look back only into the train and early-stopping rows.
+    `history_rows` supplies the weather (never labels) the adapter may look back
+    on at prediction time; only hours before the predicted hour are read.
     """
     if not train_rows or not early_stopping_rows:
         raise ToolError("LSTM needs non-empty fit and early-stopping windows")
     torch.manual_seed(config.seed)
     scaler = _fit_scaler(train_rows)
-    fit = build_sequences(train_rows, config.sequence_length)
-    combined = [*train_rows, *early_stopping_rows]
-    stop = build_sequences(combined, config.sequence_length, first_target=len(train_rows))
-    if not fit.target_indices or not stop.target_indices:
-        raise ToolError(f"Too few consecutive hourly rows to build LSTM sequences of length {config.sequence_length}")
-    fit_inputs = _to_tensor(scaler.scale(fit.inputs))
-    fit_targets = _to_tensor(label_vector(train_rows)[list(fit.target_indices)] / scaler.target_scale)
-    stop_inputs = _to_tensor(scaler.scale(stop.inputs))
-    stop_targets = _to_tensor(label_vector(combined)[list(stop.target_indices)] / scaler.target_scale)
+    training_history = hourly_history([*train_rows, *early_stopping_rows])
+    fit_inputs = _to_inputs(scaler, build_windows(train_rows, training_history, config.sequence_length))
+    stop_inputs = _to_inputs(scaler, build_windows(early_stopping_rows, training_history, config.sequence_length))
+    fit_targets = _to_tensor(label_vector(train_rows) / scaler.target_scale)
+    stop_targets = _to_tensor(label_vector(early_stopping_rows) / scaler.target_scale)
     network = _fit_network(fit_inputs, fit_targets, stop_inputs, stop_targets, config)
-    history = {parse_timestamp(row["timestamp"]): vector for row, vector in zip(history_rows, feature_matrix(history_rows))}
-    return LstmPredictor(network, scaler, history, config.sequence_length)
+    return LstmPredictor(network, scaler, hourly_history(history_rows), config.sequence_length)
 
 
 def _fit_scaler(train_rows: Sequence[WeatherRow]) -> FeatureScaler:
@@ -165,8 +178,14 @@ def _fit_scaler(train_rows: Sequence[WeatherRow]) -> FeatureScaler:
     return FeatureScaler(mean=features.mean(axis=0), std=np.where(std < MIN_FEATURE_STD, 1.0, std), target_scale=max(float(labels.max()), MIN_FEATURE_STD))
 
 
+def _to_inputs(scaler: FeatureScaler, windows: Windows) -> torch.Tensor:
+    """Scaled steps with padding zeroed, plus the validity flag as the last channel."""
+    valid = windows.valid[..., np.newaxis].astype(np.float64)
+    return _to_tensor(np.concatenate([scaler.scale(windows.features) * valid, valid], axis=-1))
+
+
 def _fit_network(fit_inputs: torch.Tensor, fit_targets: torch.Tensor, stop_inputs: torch.Tensor, stop_targets: torch.Tensor, config: LstmConfig) -> _Network:
-    network = _Network(fit_inputs.shape[-1], config.hidden_size)
+    network = _Network(STEP_WIDTH, config.hidden_size)
     optimizer = torch.optim.Adam(network.parameters(), lr=config.learning_rate)
     loss_function = nn.MSELoss()
     shuffle = torch.Generator().manual_seed(config.seed)
@@ -191,11 +210,11 @@ def _fit_network(fit_inputs: torch.Tensor, fit_targets: torch.Tensor, stop_input
     return network
 
 
-def _predict(network: _Network, scaler: FeatureScaler, windows: np.ndarray) -> np.ndarray:
-    if not len(windows):
+def _predict(network: _Network, scaler: FeatureScaler, windows: Windows) -> np.ndarray:
+    if not len(windows.features):
         return np.empty(0)
     with torch.no_grad():
-        return network(_to_tensor(scaler.scale(windows))).numpy() * scaler.target_scale
+        return network(_to_inputs(scaler, windows)).numpy() * scaler.target_scale
 
 
 def _to_tensor(values: np.ndarray) -> torch.Tensor:

@@ -13,10 +13,12 @@ Expanding cos(az - panel_azimuth) gives three terms that do not depend on which
 way the panel faces, so no panel azimuth is assumed here; a model learns the
 facing direction as weights on the east-west and north-south terms.
 
-Each model chooses whether to use them. Measured on the synthetic example data
-(decision-quality metric in evaluation.py): they cut the LSTM's error roughly in
-half and sharpen its angle ranking, but for boosted trees they lower RMSE while
-making the predicted angle curve bumpier, so boosting keeps the contract columns.
+Each model chooses whether to use them; both advanced models do by default.
+Measured with the validation RMSE and the decision-quality metric in evaluation.py:
+- pipeline dataset (real weather, physics-derived labels): they lower validation
+  error and angle-curve error for both the LSTM and boosted trees;
+- synthetic example data (noisy labels): they help the LSTM, while for boosted
+  trees they lower RMSE but make the predicted angle curve bumpier.
 """
 
 from typing import Sequence

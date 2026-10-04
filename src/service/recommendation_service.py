@@ -20,16 +20,20 @@ from src.common.schema import MODEL_NAMES, AgentState, FrontendData, Metadata, W
 from src.common.tool_contracts import ToolError
 from src.models.advanced import boosting, lstm
 from src.models.advanced.features import split_for_early_stopping
-from src.models.data_loader import DatasetError, DatasetSource, load_weather_rows
+from src.models.data_loader import DatasetError, DatasetSource, hourly_weather, load_dataset_split
 from src.models.evaluation import (
-    EvaluatedModelingTools, ModelCandidate, StepOutcome, SystemEvaluation, chronological_split, evaluate_system, to_features,
+    EvaluatedModelingTools, ModelCandidate, StepOutcome, SystemEvaluation, evaluate_system,
 )
 from src.models.optimizer import DeterministicOptimizationTools
 
 
 DEFAULT_IMPLEMENTATIONS = {"linear_regression": "linear_regression", "random_forest": "random_forest", "boosting": boosting.IMPLEMENTATION, "lstm": lstm.IMPLEMENTATION}
 MOCK_DATA_ASSUMPTION = "SYNTHETIC EXAMPLE DATA: weather and energy labels are simulated from a documented formula (data/example/README.md); not measurements."
-LIVE_DATA_ASSUMPTION = "Dataset provenance is declared by the data pipeline (label_source)."
+LIVE_DATA_ASSUMPTIONS = {
+    "physics-derived": "Weather comes from the data pipeline; energy labels are physics-simulated for a reference row, not measured production. Model accuracy means agreement with that simulation.",
+    "measured": "Weather and measured energy come from the data pipeline.",
+    "unavailable": "Weather comes from the data pipeline; no energy labels are available.",
+}
 COMMON_ASSUMPTIONS = (
     "kWh is for one 20-panel row over the hour starting at interval_start.",
     "PROTOTYPE SIMULATION ASSUMPTIONS: movement and safety coefficients are not hardware-calibrated.",
@@ -49,7 +53,7 @@ class DuyAgents:
 
 def build_metadata(source: DatasetSource, *, interval_start: str, control_target_id: str, config: SimulationConfig) -> Metadata:
     """Run metadata labeled from the dataset source, so mock data can never be presented as live."""
-    data_assumption = MOCK_DATA_ASSUMPTION if source.dataset_kind == "MOCK" else LIVE_DATA_ASSUMPTION
+    data_assumption = MOCK_DATA_ASSUMPTION if source.dataset_kind == "MOCK" else LIVE_DATA_ASSUMPTIONS[source.label_source]
     return {
         "schema_version": SCHEMA_VERSION,
         "dataset_kind": source.dataset_kind,
@@ -71,10 +75,10 @@ def build_modeling_tools(source: DatasetSource, *, metadata: Metadata, extra_can
     nobody supplies is reported UNAVAILABLE, never estimated.
     """
     try:
-        rows = load_weather_rows(source.path)
-        split = chronological_split(rows)
+        split = load_dataset_split(source)
     except (DatasetError, ValueError) as exc:
         raise ToolError(f"Training data unavailable: {exc}") from exc
+    rows = [*split.train, *split.validation, *split.test]
     supplied = {candidate.model: candidate for candidate in extra_candidates}
     if boosting.MODEL_NAME not in supplied:
         supplied[boosting.MODEL_NAME] = _train_boosting_candidate(split.train)
@@ -97,9 +101,9 @@ def _train_boosting_candidate(train_rows: Sequence) -> ModelCandidate:
 
 
 def _train_lstm_candidate(train_rows: Sequence, all_rows: Sequence) -> ModelCandidate:
-    """The adapter keeps recorded features (never labels) as look-back history for prediction time."""
+    """The adapter keeps hourly weather (never labels) as look-back history for prediction time."""
     try:
-        predictor = lstm.train_lstm(*split_for_early_stopping(train_rows), [to_features(row) for row in all_rows])
+        predictor = lstm.train_lstm(*split_for_early_stopping(train_rows), hourly_weather(all_rows))
     except ToolError as exc:
         return ModelCandidate(lstm.MODEL_NAME, lstm.IMPLEMENTATION, unavailable_reason=f"training failed: {exc}")
     return ModelCandidate(lstm.MODEL_NAME, lstm.IMPLEMENTATION, predictor=predictor)
@@ -162,11 +166,11 @@ def replay_test_window(
     is reported as not run). By default energy is the selected model's prediction,
     not a measurement, and it grades the model's choices with the model's own
     numbers, so it is optimistic; pass `energy_at` to score against another
-    energy source. A sequence model's look-back window holds the dataset's
-    recorded angles, not the replayed trajectory.
+    energy source. The test window is replayed one decision per hour, whatever
+    number of angle rows the dataset holds for that hour.
     """
     try:
-        test_rows = chronological_split(load_weather_rows(source.path)).test
+        test_hours = hourly_weather(load_dataset_split(source).test)
     except (DatasetError, ValueError) as exc:
         raise ToolError(f"Replay data unavailable: {exc}") from exc
     agents = build_agents(modeling_tools, config)
@@ -192,7 +196,7 @@ def replay_test_window(
             return predictor.predict_kwh(weather, (angle_deg,), metadata=metadata_for(weather))[0]["predicted_kwh"]
 
     return evaluate_system(
-        [to_features(row) for row in test_rows], decide, energy_at,
+        test_hours, decide, energy_at,
         initial_angle_deg=initial_angle_deg, energy_source=energy_source or "caller-supplied", config=config,
     )
 

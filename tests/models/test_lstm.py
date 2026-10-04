@@ -1,4 +1,4 @@
-"""LSTM sequence building (no look-ahead, no label) and a training smoke test."""
+"""LSTM window building (no look-ahead, no label, honest padding) and a training smoke test."""
 
 import dataclasses
 from datetime import datetime, timezone
@@ -12,7 +12,7 @@ from scripts.generate_example_data import DEFAULT_EXAMPLE_CONFIG, generate_rows
 from src.common.schema import FEATURE_COLUMNS
 from src.common.tool_contracts import EnergyPredictor, ToolError
 from src.models.advanced.features import MODEL_FEATURE_NAMES, feature_matrix, split_for_early_stopping
-from src.models.advanced.lstm import LstmConfig, build_sequences, train_lstm
+from src.models.advanced.lstm import LstmConfig, build_windows, hourly_history, train_lstm
 from src.models.evaluation import chronological_split, evaluate_predictor, to_features
 
 
@@ -24,68 +24,105 @@ SMOKE_DATA = dataclasses.replace(
     end=datetime(2026, 6, 15, tzinfo=timezone.utc),
 )
 SMOKE_MODEL = LstmConfig(sequence_length=4, hidden_size=24, max_epochs=25, patience=6)
+HOUR_COLUMN = MODEL_FEATURE_NAMES.index("temperature_c")
+ANGLE_COLUMN = MODEL_FEATURE_NAMES.index("panel_angle_deg")
 
 
 def hourly_rows(count: int, *, skip_hours: tuple[int, ...] = ()) -> list[dict]:
-    """Rows whose every feature equals the hour number, so windows are easy to read."""
+    """Rows whose temperature equals the hour number, so each window step can be identified."""
     return [
-        {"timestamp": f"2026-06-{1 + hour // 24:02d}T{hour % 24:02d}:00:00Z", **{name: float(hour) for name in FEATURE_COLUMNS}, "actual_kwh": 1000.0 + hour}
+        {
+            "timestamp": f"2026-06-{1 + hour // 24:02d}T{hour % 24:02d}:00:00Z",
+            **{name: 1.0 for name in FEATURE_COLUMNS}, "temperature_c": float(hour), "panel_angle_deg": 30.0, "actual_kwh": 1000.0 + hour,
+        }
         for hour in range(count) if hour not in skip_hours
     ]
 
 
-class BuildSequencesTest(unittest.TestCase):
-    def test_each_window_ends_at_its_target_and_holds_the_preceding_hours(self) -> None:
-        sequences = build_sequences(hourly_rows(6), sequence_length=3)
+def step_hours(windows, index: int) -> list[float | None]:
+    """The hour number held by each step of one window; None for a padding step."""
+    return [float(step[HOUR_COLUMN]) if is_real else None for step, is_real in zip(windows.features[index], windows.valid[index])]
 
-        self.assertEqual(sequences.target_indices, (2, 3, 4, 5))
-        self.assertEqual(sequences.inputs.shape, (4, 3, len(MODEL_FEATURE_NAMES)))
-        self.assertEqual(sequences.inputs[0, :, 0].tolist(), [0.0, 1.0, 2.0])
-        self.assertEqual(sequences.inputs[-1, :, 0].tolist(), [3.0, 4.0, 5.0])
+
+class BuildWindowsTest(unittest.TestCase):
+    def test_each_window_ends_at_its_target_and_holds_the_preceding_hours(self) -> None:
+        rows = hourly_rows(6)
+
+        windows = build_windows(rows, hourly_history(rows), sequence_length=3)
+
+        self.assertEqual(windows.features.shape, (6, 3, len(MODEL_FEATURE_NAMES)))
+        self.assertEqual(step_hours(windows, 5), [3.0, 4.0, 5.0])
+        self.assertEqual(step_hours(windows, 2), [0.0, 1.0, 2.0])
 
     def test_no_window_reaches_past_its_prediction_hour(self) -> None:
         rows = hourly_rows(12)
 
-        sequences = build_sequences(rows, sequence_length=4)
+        windows = build_windows(rows, hourly_history(rows), sequence_length=4)
 
-        for window, target in zip(sequences.inputs, sequences.target_indices):
-            self.assertLessEqual(window.max(), float(target))
+        for index in range(len(rows)):
+            self.assertLessEqual(max(hour for hour in step_hours(windows, index) if hour is not None), float(index))
 
     def test_changing_future_rows_does_not_change_earlier_windows(self) -> None:
         rows = hourly_rows(12)
-        tampered = [row if index <= 6 else {**row, **{name: -999.0 for name in FEATURE_COLUMNS}} for index, row in enumerate(rows)]
+        tampered = [row if index <= 6 else {**row, "temperature_c": -999.0, "ghi_wm2": 999.0} for index, row in enumerate(rows)]
 
-        original = build_sequences(rows, sequence_length=4)
-        changed = build_sequences(tampered, sequence_length=4)
+        original = build_windows(rows[:7], hourly_history(rows), sequence_length=4)
+        changed = build_windows(tampered[:7], hourly_history(tampered), sequence_length=4)
 
-        up_to_cutoff = [position for position, target in enumerate(original.target_indices) if target <= 6]
-        self.assertTrue(up_to_cutoff)
-        np.testing.assert_array_equal(original.inputs[up_to_cutoff], changed.inputs[up_to_cutoff])
+        np.testing.assert_array_equal(original.features, changed.features)
+        np.testing.assert_array_equal(original.valid, changed.valid)
 
     def test_label_is_never_part_of_a_window(self) -> None:
-        sequences = build_sequences(hourly_rows(8), sequence_length=3)
+        rows = hourly_rows(8)
 
-        self.assertLess(sequences.inputs.max(), 1000.0)
+        windows = build_windows(rows, hourly_history(rows), sequence_length=3)
+
+        self.assertLess(windows.features.max(), 1000.0)
+
+    def test_missing_history_is_padding_not_invented_weather(self) -> None:
+        rows = hourly_rows(4)
+
+        windows = build_windows(rows, hourly_history(rows), sequence_length=3)
+
+        self.assertEqual(step_hours(windows, 0), [None, None, 0.0])
+        self.assertEqual(step_hours(windows, 1), [None, 0.0, 1.0])
+        self.assertEqual(step_hours(windows, 2), [0.0, 1.0, 2.0])
 
     def test_windows_never_span_a_gap_in_the_hourly_series(self) -> None:
-        rows = hourly_rows(10, skip_hours=(4,))
+        rows = hourly_rows(8, skip_hours=(4,))
 
-        sequences = build_sequences(rows, sequence_length=3)
+        windows = build_windows(rows, hourly_history(rows), sequence_length=3)
 
-        target_hours = [int(rows[index]["temperature_c"]) for index in sequences.target_indices]
-        self.assertEqual(target_hours, [2, 3, 7, 8, 9])
+        by_hour = {int(row["temperature_c"]): index for index, row in enumerate(rows)}
+        self.assertEqual(step_hours(windows, by_hour[5]), [None, None, 5.0])
+        self.assertEqual(step_hours(windows, by_hour[6]), [None, 5.0, 6.0])
+        self.assertEqual(step_hours(windows, by_hour[7]), [5.0, 6.0, 7.0])
 
-    def test_first_target_limits_targets_but_windows_reach_back(self) -> None:
-        sequences = build_sequences(hourly_rows(8), sequence_length=3, first_target=6)
+    def test_history_steps_take_the_targets_panel_angle(self) -> None:
+        rows = hourly_rows(4)
+        target = {**rows[3], "panel_angle_deg": 55.0}
 
-        self.assertEqual(sequences.target_indices, (6, 7))
-        self.assertEqual(sequences.inputs[0, :, 0].tolist(), [4.0, 5.0, 6.0])
+        windows = build_windows([target], hourly_history(rows), sequence_length=3)
 
-    def test_too_few_rows_gives_no_sequences(self) -> None:
-        sequences = build_sequences(hourly_rows(2), sequence_length=3)
+        self.assertEqual(windows.features[0, :, ANGLE_COLUMN].tolist(), [55.0, 55.0, 55.0])
 
-        self.assertEqual(sequences.target_indices, ())
-        self.assertEqual(sequences.inputs.shape, (0, 3, len(MODEL_FEATURE_NAMES)))
+    def test_several_angles_for_one_hour_each_get_their_own_window(self) -> None:
+        rows = hourly_rows(3)
+        targets = [{**rows[2], "panel_angle_deg": angle} for angle in (30.0, 45.0, 60.0)]
+
+        windows = build_windows(targets, hourly_history(rows), sequence_length=2)
+
+        self.assertEqual([step_hours(windows, index) for index in range(3)], [[1.0, 2.0]] * 3)
+        self.assertEqual(windows.features[:, :, ANGLE_COLUMN].tolist(), [[30.0, 30.0], [45.0, 45.0], [60.0, 60.0]])
+
+    def test_no_targets_gives_an_empty_window_set(self) -> None:
+        windows = build_windows([], {}, sequence_length=3)
+
+        self.assertEqual(windows.features.shape, (0, 3, len(MODEL_FEATURE_NAMES)))
+
+    def test_unparseable_timestamp_raises_tool_error(self) -> None:
+        with self.assertRaises(ToolError):
+            build_windows([{**hourly_rows(1)[0], "timestamp": "yesterday"}], {}, sequence_length=2)
 
 
 class LstmSmokeTest(unittest.TestCase):
@@ -162,15 +199,18 @@ class LstmSmokeTest(unittest.TestCase):
             self.predictor.predict_kwh(self.noon, (35.0, 50.0), metadata=METADATA),
         )
 
-    def test_missing_history_raises_tool_error_instead_of_guessing(self) -> None:
+    def test_predicts_for_an_hour_with_no_stored_history(self) -> None:
         unseen_hour = {**self.noon, "timestamp": "2031-01-01T12:00:00Z"}
 
-        with self.assertRaisesRegex(ToolError, "history is missing"):
-            self.predictor.predict_kwh(unseen_hour, (35.0,), metadata=METADATA)
+        predictions = self.predictor.predict_kwh(unseen_hour, (30.0, 60.0), metadata=METADATA)
 
-    def test_too_few_rows_raises_tool_error(self) -> None:
+        self.assertEqual([entry["angle_deg"] for entry in predictions], [30.0, 60.0])
+        self.assertTrue(all(entry["predicted_kwh"] >= 0 for entry in predictions))
+        self.assertNotEqual(predictions, self.predictor.predict_kwh(self.noon, (30.0, 60.0), metadata=METADATA))
+
+    def test_empty_training_window_raises_tool_error(self) -> None:
         with self.assertRaises(ToolError):
-            train_lstm(self.fit_rows[:2], self.stop_rows[:1], self.history, SMOKE_MODEL)
+            train_lstm((), self.stop_rows, self.history, SMOKE_MODEL)
 
     def test_does_not_mutate_the_weather_input(self) -> None:
         before = dict(self.noon)

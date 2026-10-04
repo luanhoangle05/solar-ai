@@ -86,14 +86,14 @@ class BoostingSmokeTest(unittest.TestCase):
         self.assertTrue(self.stop_rows)
         self.assertLess(self.stop_rows[-1]["timestamp"], self.split.validation[0]["timestamp"])
 
-    def test_geometry_features_are_an_opt_in_that_still_predicts(self) -> None:
-        with_geometry = train_boosting(self.fit_rows, self.stop_rows, dataclasses.replace(SMOKE_MODEL, use_geometry_features=True))
+    def test_geometry_features_are_the_default_and_can_be_switched_off(self) -> None:
+        raw_only = train_boosting(self.fit_rows, self.stop_rows, dataclasses.replace(SMOKE_MODEL, use_geometry_features=False))
 
-        predictions = with_geometry.predict_kwh(self.noon, (30.0, 60.0), metadata=METADATA)
+        predictions = raw_only.predict_kwh(self.noon, (30.0, 60.0), metadata=METADATA)
 
         self.assertEqual([entry["angle_deg"] for entry in predictions], [30.0, 60.0])
-        self.assertEqual(self.predictor._booster.feature_names, list(FEATURE_COLUMNS))
-        self.assertEqual(with_geometry._booster.feature_names, list(MODEL_FEATURE_NAMES))
+        self.assertEqual(self.predictor._booster.feature_names, list(MODEL_FEATURE_NAMES))
+        self.assertEqual(raw_only._booster.feature_names, list(FEATURE_COLUMNS))
 
     def test_training_is_reproducible(self) -> None:
         again = train_boosting(self.fit_rows, self.stop_rows, SMOKE_MODEL)

@@ -1,15 +1,15 @@
 {
   "metadata": {
     "schema_version": "0.1.0",
-    "dataset_kind": "MOCK",
-    "label_source": "mock",
+    "dataset_kind": "LIVE",
+    "label_source": "physics-derived",
     "energy_scope": "row",
     "prediction_horizon_minutes": 60,
-    "interval_start": "2026-08-04T09:00:00Z",
+    "interval_start": "2025-01-15T00:00:00Z",
     "control_target_id": "row-001",
     "config_id": "prototype-row-hour-v1",
     "assumptions": [
-      "SYNTHETIC EXAMPLE DATA: weather and energy labels are simulated from a documented formula (data/example/README.md); not measurements.",
+      "Weather comes from the data pipeline; energy labels are physics-simulated for a reference row, not measured production. Model accuracy means agreement with that simulation.",
       "kWh is for one 20-panel row over the hour starting at interval_start.",
       "PROTOTYPE SIMULATION ASSUMPTIONS: movement and safety coefficients are not hardware-calibrated.",
       "Model comparison metrics are computed on the chronological validation window; the test window is held out.",
@@ -18,22 +18,22 @@
   },
   "windows": {
     "train": {
-      "rows": 3091,
-      "hours": 3091,
-      "first": "2026-03-01T00:00:00Z",
-      "last": "2026-07-07T18:00:00Z"
+      "rows": 4704,
+      "hours": 672,
+      "first": "2023-01-15T00:00:00Z",
+      "last": "2023-10-21T23:00:00Z"
     },
     "validation": {
-      "rows": 662,
-      "hours": 662,
-      "first": "2026-07-07T19:00:00Z",
-      "last": "2026-08-04T08:00:00Z"
+      "rows": 168,
+      "hours": 24,
+      "first": "2024-01-15T00:00:00Z",
+      "last": "2024-01-15T23:00:00Z"
     },
     "test": {
-      "rows": 663,
-      "hours": 663,
-      "first": "2026-08-04T09:00:00Z",
-      "last": "2026-08-31T23:00:00Z"
+      "rows": 168,
+      "hours": 24,
+      "first": "2025-01-15T00:00:00Z",
+      "last": "2025-01-15T23:00:00Z"
     }
   },
   "validation_metrics": [
@@ -56,18 +56,18 @@
     {
       "model": "boosting",
       "implementation": "xgboost",
-      "status": "MOCK",
-      "mae": 0.06740503392482249,
-      "rmse": 0.11600333986853081,
-      "r2": 0.9961642117080552
+      "status": "VALIDATED",
+      "mae": 0.10423943662127742,
+      "rmse": 0.22747896423874012,
+      "r2": 0.991175007634491
     },
     {
       "model": "lstm",
       "implementation": "pytorch",
-      "status": "MOCK",
-      "mae": 0.05729238317856952,
-      "rmse": 0.08812162239635173,
-      "r2": 0.9977865046635075
+      "status": "VALIDATED",
+      "mae": 0.10427961791384006,
+      "rmse": 0.14101287648806243,
+      "r2": 0.9966088312808273
     }
   ],
   "unavailable_reasons": {
@@ -75,7 +75,7 @@
     "random_forest": "adapter not delivered yet"
   },
   "selected_model": "lstm",
-  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.08812 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
+  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.141 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
   "test_metrics": [
     {
       "model": "linear_regression",
@@ -96,37 +96,37 @@
     {
       "model": "boosting",
       "implementation": "xgboost",
-      "status": "MOCK",
-      "mae": 0.057629582795755224,
-      "rmse": 0.108475927964719,
-      "r2": 0.995834166640387
+      "status": "VALIDATED",
+      "mae": 0.04780357796073675,
+      "rmse": 0.11081255803614926,
+      "r2": 0.9968624164425317
     },
     {
       "model": "lstm",
       "implementation": "pytorch",
-      "status": "MOCK",
-      "mae": 0.054912295454251664,
-      "rmse": 0.08420144547179534,
-      "r2": 0.99748999700639
+      "status": "VALIDATED",
+      "mae": 0.0168055595820319,
+      "rmse": 0.029374385628458198,
+      "r2": 0.9997795272477359
     }
   ],
-  "decision_quality_source": "example-data formula, noise-free (data/example/README.md)",
+  "decision_quality_source": "dataset energy labels for the same hour and angle (physics-derived)",
   "decision_quality": {
     "boosting": {
-      "hours": 401,
-      "best_angle_match_rate": 0.7506234413965087,
-      "mean_regret_kwh": 0.009221578262085658,
-      "max_regret_kwh": 0.27368585630674813,
-      "total_regret_kwh": 3.6978528830963486,
-      "mean_curve_error_kwh": 0.0379451842196419
+      "hours": 8,
+      "best_angle_match_rate": 1.0,
+      "mean_regret_kwh": 0.0,
+      "max_regret_kwh": 0.0,
+      "total_regret_kwh": 0.0,
+      "mean_curve_error_kwh": 0.034386318582230485
     },
     "lstm": {
-      "hours": 401,
-      "best_angle_match_rate": 0.9052369077306733,
-      "mean_regret_kwh": 0.00047894391165207665,
-      "max_regret_kwh": 0.015294690727500004,
-      "total_regret_kwh": 0.19205650857248274,
-      "mean_curve_error_kwh": 0.011044917535323785
+      "hours": 8,
+      "best_angle_match_rate": 1.0,
+      "mean_regret_kwh": 0.0,
+      "max_regret_kwh": 0.0,
+      "total_regret_kwh": 0.0,
+      "mean_curve_error_kwh": 0.008431050050940412
     }
   },
   "decision_quality_note": "Each model's best candidate angle is compared with the true best angle according to the stated energy source, on test-window hours where the true energy depends on the angle. Regret is true kWh lost per hour.",
@@ -139,33 +139,33 @@
   ],
   "system_evaluation": [
     {
-      "hours": 663,
-      "energy_source": "example-data formula, noise-free (data/example/README.md)",
-      "baseline_kwh": 1037.2636033251833,
-      "optimized_kwh": 1044.696075605761,
-      "energy_gain_kwh": 7.432472280577713,
-      "movement_cost_kwh_equivalent": 0.03,
-      "net_benefit_kwh_equivalent": 7.402472280577713,
-      "rotate_count": 2,
-      "hold_count": 661,
+      "hours": 24,
+      "energy_source": "dataset energy labels for the same hour and angle (physics-derived)",
+      "baseline_kwh": 26.73706190475303,
+      "optimized_kwh": 32.014078346104576,
+      "energy_gain_kwh": 5.277016441351545,
+      "movement_cost_kwh_equivalent": 0.07500000000000001,
+      "net_benefit_kwh_equivalent": 5.202016441351545,
+      "rotate_count": 1,
+      "hold_count": 23,
       "stow_count": 0,
-      "unnecessary_moves_avoided": 38,
+      "unnecessary_moves_avoided": 0,
       "severe_safety_events": 0,
       "unsafe_rotations": 0,
       "error_hours": 0
     },
     {
-      "hours": 663,
+      "hours": 24,
       "energy_source": "model-predicted (lstm)",
-      "baseline_kwh": 1049.3639800770397,
-      "optimized_kwh": 1057.4526573062758,
-      "energy_gain_kwh": 8.088677229236055,
-      "movement_cost_kwh_equivalent": 0.03,
-      "net_benefit_kwh_equivalent": 8.058677229236055,
-      "rotate_count": 2,
-      "hold_count": 661,
+      "baseline_kwh": 26.934187211096287,
+      "optimized_kwh": 32.101211823523045,
+      "energy_gain_kwh": 5.167024612426758,
+      "movement_cost_kwh_equivalent": 0.07500000000000001,
+      "net_benefit_kwh_equivalent": 5.092024612426758,
+      "rotate_count": 1,
+      "hold_count": 23,
       "stow_count": 0,
-      "unnecessary_moves_avoided": 38,
+      "unnecessary_moves_avoided": 0,
       "severe_safety_events": 0,
       "unsafe_rotations": 0,
       "error_hours": 0

@@ -13,7 +13,7 @@ import unittest
 
 from src.common.config import DEFAULT_CONFIG
 from src.common.schema import ContractError, MODEL_NAMES, validate_frontend_data
-from src.models.data_loader import default_dataset_source, load_weather_rows
+from src.models.data_loader import EXAMPLE_DATASET_SOURCE, PIPELINE_DATASET_SOURCE, hourly_weather, load_dataset_split, load_weather_rows
 from src.models.evaluation import ModelCandidate, chronological_split, to_features, unavailable_model_metrics
 from src.service.recommendation_service import (
     DEFAULT_IMPLEMENTATIONS, build_agents, build_metadata, build_modeling_tools, get_recommendation, replay_test_window,
@@ -82,7 +82,7 @@ class SliceOrchestrator:
 class DuyVerticalSliceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.source = default_dataset_source()
+        cls.source = EXAMPLE_DATASET_SOURCE
         test_rows = chronological_split(load_weather_rows(cls.source.path)).test
         calm_day = [row for row in test_rows if row["sun_elevation_deg"] > 40 and row["wind_gust_kmh"] < 40 and row["cloud_cover_pct"] < 40]
         cls.sunny_row = max(calm_day, key=lambda row: row["dni_wm2"])
@@ -207,7 +207,7 @@ class DuyVerticalSliceTest(unittest.TestCase):
 class SystemEvaluationReplayTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.source = default_dataset_source()
+        cls.source = EXAMPLE_DATASET_SOURCE
         metadata = build_metadata(cls.source, interval_start=CLOCK_TIME, control_target_id=TARGET_ROW, config=DEFAULT_CONFIG)
         cls.result = replay_test_window(
             cls.source, build_modeling_tools(cls.source, metadata=metadata), DEFAULT_CONFIG,
@@ -248,6 +248,53 @@ class SystemEvaluationReplayTest(unittest.TestCase):
 
     def test_avoided_moves_never_exceed_hold_hours(self) -> None:
         self.assertLessEqual(self.result.unnecessary_moves_avoided, self.result.hold_count)
+
+
+class PipelineDatasetTest(unittest.TestCase):
+    """The same stages on Luan's dataset: real archived weather with physics-derived labels."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.source = PIPELINE_DATASET_SOURCE
+        cls.split = load_dataset_split(cls.source)
+        cls.metadata = build_metadata(cls.source, interval_start=cls.split.test[0]["timestamp"], control_target_id=TARGET_ROW, config=DEFAULT_CONFIG)
+        cls.tools = build_modeling_tools(cls.source, metadata=cls.metadata)
+        cls.comparison = {entry["model"]: entry for entry in cls.tools.evaluate_models()}
+
+    def test_outputs_are_labeled_live_and_physics_derived_never_mock(self) -> None:
+        self.assertEqual((self.metadata["dataset_kind"], self.metadata["label_source"]), ("LIVE", "physics-derived"))
+        self.assertIn("not measured production", self.metadata["assumptions"][0])
+        self.assertEqual({self.comparison[model]["status"] for model in ("boosting", "lstm")}, {"VALIDATED"})
+
+    def test_both_advanced_models_are_scored_on_the_delivered_validation_window(self) -> None:
+        for model in ("boosting", "lstm"):
+            self.assertGreater(self.comparison[model]["r2"], 0.9)
+        self.assertEqual({self.comparison[model]["status"] for model in ("linear_regression", "random_forest")}, {"UNAVAILABLE"})
+
+    def test_replay_makes_one_decision_per_test_hour_without_errors(self) -> None:
+        result = replay_test_window(self.source, self.tools, DEFAULT_CONFIG, initial_angle_deg=35.0, control_target_id=TARGET_ROW)
+
+        self.assertEqual(result.hours, len(hourly_weather(self.split.test)))
+        self.assertEqual(result.rotate_count + result.hold_count + result.stow_count, result.hours)
+        self.assertEqual((result.error_hours, result.unsafe_rotations), (0, 0))
+
+    def test_a_real_hour_produces_a_payload_the_frontend_contract_accepts(self) -> None:
+        midday = max(hourly_weather(self.split.test), key=lambda hour: hour["sun_elevation_deg"])
+        weather = {**midday, "panel_angle_deg": 35.0}
+        agents = build_agents(self.tools, DEFAULT_CONFIG, row_status=lambda _row_id: {"angle_deg": 35.0, "current_state": "READY"}, clock=clock)
+        farm_status = json.loads((MOCK / "sample_full_frontend_data.json").read_text(encoding="utf-8"))["farm_status"]
+        orchestrator = SliceOrchestrator(StubDataAgent(weather, source="pipeline_csv"), agents, farm_status)
+        state = {
+            "run_id": "pipeline-test", "timestamp": CLOCK_TIME, "metadata": self.metadata, "stage": "PENDING",
+            "weather": None, "data": None, "modeling": None, "optimization": None, "safety": None, "decision": None,
+            "agent_log": [], "tool_calls": [], "errors": [],
+        }
+
+        payload = get_recommendation(state, orchestrator)
+
+        self.assertEqual(payload["errors"], [])
+        self.assertIn(payload["decision"]["action"], ("ROTATE", "HOLD"))
+        self.assertEqual({entry["status"] for entry in payload["model_comparison"]}, {"VALIDATED", "UNAVAILABLE"})
 
 
 def _unavailable(model: str) -> ModelCandidate:

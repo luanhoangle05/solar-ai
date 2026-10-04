@@ -27,8 +27,9 @@ class BoostingConfig:
     colsample_bytree: float = 0.9
     min_child_weight: float = 2.0
     seed: int = 20261004
-    # Off by default: on the example data geometry features improved RMSE but worsened angle ranking for trees.
-    use_geometry_features: bool = False
+    # On by default: on the pipeline dataset they roughly halve validation RMSE and smooth the angle curve.
+    # (On the noisy synthetic example data they lowered RMSE but made the curve bumpier; see features.py.)
+    use_geometry_features: bool = True
 
 
 DEFAULT_BOOSTING_CONFIG = BoostingConfig()
