@@ -1,4 +1,5 @@
 "use client";
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { ArrowRight, Cloud, Crosshair, Eye, MousePointerClick, Play, RotateCcw, Settings2, Sun, Thermometer, Timer, Wind, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,9 @@ import { formatAngle } from "@/lib/formatters";
 import "@/app/(solar)/farm/farm.css";
 import "./solar-farm-simulation.css";
 
+// WebGL only runs in the browser, so the lab is loaded on demand like the farm scene.
+const SunLabScene = dynamic(() => import("./sun-lab-scene"), { ssr: false, loading: () => <div className="f3-loading" role="status">Preparing the sun lab…</div> });
+
 const weatherIcons = { ghi: Sun, clouds: Cloud, temperature: Thermometer, wind: Wind } as const;
 
 /**
@@ -21,7 +25,7 @@ const weatherIcons = { ghi: Sun, clouds: Cloud, temperature: Thermometer, wind: 
 export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
   const targetId = data.metadata.control_target_id;
   const [selection, setSelection] = useState(() => getInitialSelection(data.farm_status, getRowById(data.farm_status, data.metadata.control_target_id)));
-  const [view, setView] = useState<"2d" | "3d">("3d");
+  const [view, setView] = useState<"2d" | "3d" | "lab">("3d");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const conditions = getSimulationConditions(data);
   const previewAngle = getPreviewAngle(data);
@@ -50,11 +54,13 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
     <div className="sfs-body">
       <div className="sfs-scene" data-preview={isPreviewing}>
         <div className="sfs-scene-bar">
-          <span><MousePointerClick size={14} aria-hidden="true"/>Drag to rotate · Scroll to zoom · Click a row to zoom in on it · Overview to zoom back out</span>
+          <span><MousePointerClick size={14} aria-hidden="true"/>{view === "lab" ? "Drag the sun along its arc and the row turns to face it" : "Drag to rotate · Scroll to zoom · Click a row to zoom in on it · Overview to zoom back out"}</span>
           {isPreviewing && <span className="sfs-preview-tag"><Eye size={13} aria-hidden="true"/>PREVIEW · {data.decision.action} · {targetId} drawn at {formatAngle(previewAngle)}</span>}
-          <div role="group" aria-label="Farm view"><button type="button" aria-pressed={view === "2d"} onClick={() => setView("2d")}>2D</button><button type="button" aria-pressed={view === "3d"} onClick={() => setView("3d")}>3D</button></div>
+          <div role="group" aria-label="Farm view"><button type="button" aria-pressed={view === "2d"} onClick={() => setView("2d")}>2D</button><button type="button" aria-pressed={view === "3d"} onClick={() => setView("3d")}>3D</button><button type="button" aria-pressed={view === "lab"} onClick={() => setView("lab")}>Sun lab</button></div>
         </div>
-        {view === "3d" ? <Farm3DLoader {...sceneProps} weather={sceneWeather} trackingRange={trackingRange} onExit={() => setView("2d")}/> : <FarmMap {...sceneProps}/>}
+        {view === "3d" ? <Farm3DLoader {...sceneProps} weather={sceneWeather} trackingRange={trackingRange} onExit={() => setView("2d")}/>
+          : view === "lab" ? (rowView ? <SunLabScene rowId={rowView.row.row_id} recordedAngle={rowView.currentAngle} recommendedAngle={rowView.recommendedAngle} evaluated={trackingRange ?? null}/> : <div className="f3-loading" role="status">Select a row to open the sun lab.</div>)
+          : <FarmMap {...sceneProps}/>}
       </div>
       {rowView
         ? <RowPanel view={rowView} action={data.decision.action} previewAngle={previewAngle} isPreviewing={isPreviewing} onPreview={setIsPreviewing}/>

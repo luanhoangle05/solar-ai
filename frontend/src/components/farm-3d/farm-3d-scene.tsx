@@ -105,7 +105,7 @@ function RowMarker({ row, target, labels, portal }: { row: SceneRow; target: boo
 }
 
 // Procedural textures only: nothing is downloaded, so the scene works offline.
-function makeRadialTexture(stops: [number, string][]) {
+export function makeRadialTexture(stops: [number, string][]) {
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 256;
   const context = canvas.getContext("2d");
   if (context) {
@@ -165,7 +165,7 @@ function makeGroundTexture(repeat: number) {
   return texture;
 }
 /** A photovoltaic module: dark cells with busbars inside an aluminium frame. */
-function makeModuleTexture() {
+export function makeModuleTexture() {
   const canvas = document.createElement("canvas"); canvas.width = 256; canvas.height = 384;
   const context = canvas.getContext("2d");
   if (context) {
