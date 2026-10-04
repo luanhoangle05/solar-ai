@@ -196,8 +196,8 @@ function SceneSky({ environment, layout }: { environment: SceneEnvironment; layo
       <sprite scale={[glowSize, glowSize, 1]}><spriteMaterial map={glow} blending={AdditiveBlending} depthWrite={false} transparent toneMapped={false} fog={false}/></sprite>
     </group>
     {/* The cloud texture decodes asynchronously; this boundary lets the farm render first and the clouds appear after. */}
-    <Suspense fallback={null}><Clouds texture={cloudUrl} limit={420} material={MeshBasicMaterial}>
-      {environment.clouds.map((cloud, index) => <Cloud key={index} ref={node => { cloudGroups.current[index] = node; }} seed={index + 1} position={cloud.position} bounds={[3.4 * cloud.scale, 0.8 * cloud.scale, 1.9 * cloud.scale]} volume={4.4 * cloud.scale} segments={22} opacity={1} speed={0.14} fade={260} color="#ffffff"/>)}
+    <Suspense fallback={null}><Clouds texture={cloudUrl} limit={700} material={MeshBasicMaterial}>
+      {environment.clouds.map((cloud, index) => <Cloud key={index} ref={node => { cloudGroups.current[index] = node; }} seed={index + 1} position={cloud.position} bounds={[3.4 * cloud.scale, 0.8 * cloud.scale, 1.9 * cloud.scale]} volume={4.4 * cloud.scale} segments={14} opacity={1} speed={0.14} fade={260} color="#ffffff"/>)}
     </Clouds></Suspense>
     {/* Cloud sprites cannot cast real shadows, so each gets a soft ground shadow offset away from the sun. */}
     {environment.clouds.map((cloud, index) => <mesh key={index} ref={node => { cloudShades.current[index] = node; }} rotation={[-Math.PI / 2, 0, 0]} position={[cloud.position[0] - sunX / sunY * cloud.position[1], 0.16, cloud.position[2] - sunZ / sunY * cloud.position[1]]}>

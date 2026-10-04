@@ -104,9 +104,9 @@ import { cameraDirections, getSceneEnvironment } from "./farm-3d";
 describe("scenic sky follows the supplied weather", () => {
   const bounds = { width: 60, depth: 60, center: [0, 0, 0] as [number, number, number] };
   it("draws no clouds for a clear sky", () => expect(getSceneEnvironment({ cloudCoverPct: 0, ghiWm2: 900 }, bounds).clouds).toEqual([]));
-  it("draws more clouds as cloud cover rises", () => expect([15, 50, 100].map(cloudCoverPct => getSceneEnvironment({ cloudCoverPct, ghiWm2: 500 }, bounds).cloudCount)).toEqual([3, 7, 14]));
+  it("draws more clouds as cloud cover rises", () => expect([15, 50, 100].map(cloudCoverPct => getSceneEnvironment({ cloudCoverPct, ghiWm2: 500 }, bounds).cloudCount)).toEqual([8, 24, 48]));
   it("brightens the sun with GHI", () => expect(getSceneEnvironment({ cloudCoverPct: 10, ghiWm2: 850 }, bounds).sunIntensity).toBeGreaterThan(getSceneEnvironment({ cloudCoverPct: 10, ghiWm2: 100 }, bounds).sunIntensity));
-  it("clamps out-of-range inputs", () => expect(getSceneEnvironment({ cloudCoverPct: 250, ghiWm2: 5000 }, bounds)).toMatchObject({ cloudCount: 14, brightness: 1 }));
+  it("clamps out-of-range inputs", () => expect(getSceneEnvironment({ cloudCoverPct: 250, ghiWm2: 5000 }, bounds)).toMatchObject({ cloudCount: 48, brightness: 1 }));
   it("is deterministic for the same payload", () => expect(getSceneEnvironment({ cloudCoverPct: 40, ghiWm2: 600 }, bounds)).toEqual(getSceneEnvironment({ cloudCoverPct: 40, ghiWm2: 600 }, bounds)));
   it("keeps the default camera direction unless the scenic one is requested", () => expect(cameraDirections.overview).toEqual([0.18, 0.72, 0.67]));
 });

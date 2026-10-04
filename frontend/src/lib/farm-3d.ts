@@ -70,7 +70,7 @@ export function getCameraPreset(layout: FarmSceneLayout, aspect: number, rowId: 
 /** Weather values the scenic 3D view reacts to. Both come straight from the payload's current_weather. */
 export type SceneWeather = { cloudCoverPct: number; ghiWm2: number; windSpeedKmh?: number };
 export type SceneCloud = { position: Vec3; scale: number };
-export const sceneSky = { maxClouds: 14, cloudHeight: 9, fullSunGhi: 1000, sunPeriodSeconds: 120, maxWindKmh: 120 } as const;
+export const sceneSky = { maxClouds: 48, cloudHeight: 9, fullSunGhi: 1000, sunPeriodSeconds: 120, maxWindKmh: 120 } as const;
 const fraction = (value: number) => value - Math.floor(value);
 /**
  * Presentation of the supplied weather. Cloud count follows cloud cover and light strength follows GHI.
