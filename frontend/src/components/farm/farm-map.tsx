@@ -13,10 +13,12 @@ export function FarmMap({ farm, targetId, selectedZone, selectedRow, onZone, onR
 }) {
   return <FarmPanel title="Farm Explorer" icon={PanelsTopLeft} className="fx-map" meta={<span className="fx-note">2D SCHEMATIC · NOT GEOGRAPHIC</span>}>
     <div className="fx-canvas"><div className="fx-canvas-caption"><span>ZONE / ROW INSPECTION</span><span>Layout illustrative · membership exact</span></div>
+      {!farm.zones.length && <p className="fx-empty">No zones available in this payload.</p>}
       <div className="fx-zone-grid">{farm.zones.map(zone => {
         const rows = getZoneRows(farm,zone); const target = zone.row_ids.includes(targetId);
         return <section className="fx-zone" key={zone.zone_id} data-selected={selectedZone === zone.zone_id} style={{"--zone-color":getZoneColor(zone.zone_id)} as CSSProperties}>
           <button className="fx-zone-label" type="button" aria-pressed={selectedZone === zone.zone_id} aria-label={`Inspect ${formatZoneName(zone.zone_id)}`} onClick={() => onZone(zone.zone_id)}><MapPin size={20} aria-hidden="true"/><span><strong>{formatZoneName(zone.zone_id)}</strong><small>{zone.row_ids.length} rows · {zone.panel_count} panels</small></span>{target && <span className="fx-zone-target"><Crosshair size={13} aria-hidden="true"/>TARGET</span>}</button>
+          {!rows.length && <p className="fx-empty">No rows available in this zone.</p>}
           <div className="fx-array-grid">{rows.map(row => {
             const StateIcon = rowStatePresentation[row.current_state].icon;
             const isTarget = row.row_id === targetId;

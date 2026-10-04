@@ -4,7 +4,7 @@
 } from "@/types/solar";
 
 export interface FrontendSummary {
-  currentAngleDeg: number;
+  currentAngleDeg: number | null;
   recommendedAngleDeg: number | null;
   predictedKwh: number | null;
   energyGainKwh: number | null;
@@ -46,7 +46,7 @@ export function getFrontendSummary(
     currentAngleDeg:
       optimization?.current_angle_deg ??
       targetRow?.angle_deg ??
-      data.decision.target_angle_deg,
+      null,
     recommendedAngleDeg: optimization?.recommended_angle_deg ?? null,
     predictedKwh: optimization?.predicted_kwh ?? null,
     energyGainKwh: optimization?.energy_gain_kwh ?? null,

@@ -22,5 +22,8 @@ class SceneBoundary extends Component<{ children: ReactNode; onExit: () => void 
   render() { return this.state.failed ? <SceneUnavailable onExit={this.props.onExit}/> : this.props.children; }
 }
 export function Farm3DLoader(props: Farm3DProps) {
+  if (!props.farm.zones.length || !props.farm.rows.length) {
+    return <div className="f3-loading" role="status"><strong>No farm geometry available in this payload.</strong><p>The row table and 2D view remain available for inspection.</p><button type="button" onClick={props.onExit}>Return to 2D</button></div>;
+  }
   return <SceneBoundary onExit={props.onExit}><Scene {...props}/></SceneBoundary>;
 }

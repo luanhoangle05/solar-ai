@@ -16,7 +16,7 @@ export function CandidateEnergyChart({ candidates, currentAngle, recommendedAngl
   const current = candidates.find(candidate => candidate.angle_deg === currentAngle);
   const recommended = candidates.find(candidate => candidate.angle_deg === recommendedAngle);
   return (
-    <div className="candidate-chart" role="img" aria-label="Raw predicted energy in kilowatt-hours by candidate tilt angle in degrees. Full values are in the candidate data table below.">
+    <div className="candidate-chart" role="group" aria-label="Raw predicted energy in kilowatt-hours by candidate tilt angle in degrees. Full values are in the candidate data table below.">
       <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 640, height: 210 }}>
         <LineChart data={candidates} margin={{ top: 15, right: 18, bottom: 3, left: -9 }} accessibilityLayer>
           <CartesianGrid stroke="var(--border)" strokeOpacity={0.65} />
