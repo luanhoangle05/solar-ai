@@ -65,9 +65,9 @@
       "model": "lstm",
       "implementation": "pytorch",
       "status": "VALIDATED",
-      "mae": 0.10427961791384006,
-      "rmse": 0.14101287648806243,
-      "r2": 0.9966088312808273
+      "mae": 0.08594567463256261,
+      "rmse": 0.12421440843196108,
+      "r2": 0.9973686670454056
     }
   ],
   "unavailable_reasons": {
@@ -75,7 +75,7 @@
     "random_forest": "adapter not delivered yet"
   },
   "selected_model": "lstm",
-  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.141 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
+  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.1242 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
   "test_metrics": [
     {
       "model": "linear_regression",
@@ -105,11 +105,23 @@
       "model": "lstm",
       "implementation": "pytorch",
       "status": "VALIDATED",
-      "mae": 0.0168055595820319,
-      "rmse": 0.029374385628458198,
-      "r2": 0.9997795272477359
+      "mae": 0.017593020474012268,
+      "rmse": 0.032296713868172074,
+      "r2": 0.9997334774183229
     }
   ],
+  "lstm_without_history": {
+    "validation": {
+      "mae": 0.11096548626332729,
+      "rmse": 0.12984943443570054,
+      "r2": 0.997124509223885
+    },
+    "test": {
+      "mae": 0.01876669764122844,
+      "rmse": 0.030096626770147603,
+      "r2": 0.9997685522384783
+    }
+  },
   "decision_quality_source": "dataset energy labels for the same hour and angle (physics-derived)",
   "decision_quality": {
     "boosting": {
@@ -126,7 +138,7 @@
       "mean_regret_kwh": 0.0,
       "max_regret_kwh": 0.0,
       "total_regret_kwh": 0.0,
-      "mean_curve_error_kwh": 0.008431050050940412
+      "mean_curve_error_kwh": 0.011502010981736626
     }
   },
   "decision_quality_note": "Each model's best candidate angle is compared with the true best angle according to the stated energy source, on test-window hours where the true energy depends on the angle. Regret is true kWh lost per hour.",
@@ -157,11 +169,11 @@
     {
       "hours": 24,
       "energy_source": "model-predicted (lstm)",
-      "baseline_kwh": 26.934187211096287,
-      "optimized_kwh": 32.101211823523045,
-      "energy_gain_kwh": 5.167024612426758,
+      "baseline_kwh": 27.00881369318813,
+      "optimized_kwh": 32.34852136578411,
+      "energy_gain_kwh": 5.339707672595978,
       "movement_cost_kwh_equivalent": 0.07500000000000001,
-      "net_benefit_kwh_equivalent": 5.092024612426758,
+      "net_benefit_kwh_equivalent": 5.264707672595978,
       "rotate_count": 1,
       "hold_count": 23,
       "stow_count": 0,

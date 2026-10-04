@@ -12,7 +12,7 @@ from scripts.generate_example_data import DEFAULT_EXAMPLE_CONFIG, generate_rows
 from src.common.schema import FEATURE_COLUMNS
 from src.common.tool_contracts import EnergyPredictor, ToolError
 from src.models.advanced.features import MODEL_FEATURE_NAMES, feature_matrix, split_for_early_stopping
-from src.models.advanced.lstm import LstmConfig, build_windows, hourly_history, train_lstm
+from src.models.advanced.lstm import LstmConfig, _shorten_history, build_windows, hourly_history, train_lstm
 from src.models.evaluation import chronological_split, evaluate_predictor, to_features
 
 
@@ -125,6 +125,38 @@ class BuildWindowsTest(unittest.TestCase):
             build_windows([{**hourly_rows(1)[0], "timestamp": "yesterday"}], {}, sequence_length=2)
 
 
+class ShortenHistoryTest(unittest.TestCase):
+    def setUp(self) -> None:
+        rows = hourly_rows(200)
+        self.windows = build_windows(rows[10:], hourly_history(rows), sequence_length=5)
+        self.shortened = _shorten_history(self.windows, LstmConfig(sequence_length=5, history_dropout=0.5))
+
+    def test_target_step_is_always_kept_and_features_are_untouched(self) -> None:
+        self.assertTrue(self.shortened.valid[:, -1].all())
+        np.testing.assert_array_equal(self.shortened.features, self.windows.features)
+
+    def test_only_a_leading_run_of_history_is_hidden(self) -> None:
+        for flags in self.shortened.valid:
+            first_real = int(np.argmax(flags))
+            self.assertTrue(flags[first_real:].all())
+
+    def test_roughly_the_configured_share_of_windows_is_shortened_including_to_no_history(self) -> None:
+        real_steps = self.shortened.valid.sum(axis=1)
+
+        self.assertTrue(0.35 < (real_steps < 5).mean() < 0.65)
+        self.assertIn(1, real_steps)
+
+    def test_zero_dropout_leaves_windows_unchanged(self) -> None:
+        unchanged = _shorten_history(self.windows, LstmConfig(sequence_length=5, history_dropout=0.0))
+
+        np.testing.assert_array_equal(unchanged.valid, self.windows.valid)
+
+    def test_shortening_is_reproducible(self) -> None:
+        again = _shorten_history(self.windows, LstmConfig(sequence_length=5, history_dropout=0.5))
+
+        np.testing.assert_array_equal(again.valid, self.shortened.valid)
+
+
 class LstmSmokeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -207,6 +239,21 @@ class LstmSmokeTest(unittest.TestCase):
         self.assertEqual([entry["angle_deg"] for entry in predictions], [30.0, 60.0])
         self.assertTrue(all(entry["predicted_kwh"] >= 0 for entry in predictions))
         self.assertNotEqual(predictions, self.predictor.predict_kwh(self.noon, (30.0, 60.0), metadata=METADATA))
+
+    def test_still_learns_daytime_energy_without_any_stored_history(self) -> None:
+        metrics = evaluate_predictor(self.predictor.without_history(), self.split.test, metadata=METADATA)
+
+        self.assertGreater(metrics.r2, 0.5)
+
+    def test_trains_on_several_angle_rows_per_hour(self) -> None:
+        hours = self.rows[:240]
+        expanded = [{**row, "panel_angle_deg": angle} for row in hours for angle in (30.0, 45.0, 60.0)]
+        fit_rows, stop_rows = split_for_early_stopping(expanded)
+
+        predictor = train_lstm(fit_rows, stop_rows, [to_features(row) for row in expanded], SMOKE_MODEL)
+        predictions = predictor.predict_kwh(to_features(hours[100]), (30.0, 45.0, 60.0), metadata=METADATA)
+
+        self.assertEqual([entry["angle_deg"] for entry in predictions], [30.0, 45.0, 60.0])
 
     def test_empty_training_window_raises_tool_error(self) -> None:
         with self.assertRaises(ToolError):

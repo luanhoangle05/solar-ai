@@ -28,6 +28,7 @@ EXAMPLE_DATASET_PATH = ROOT / "data" / "example" / "example_weather.csv"
 PIPELINE_DATASET_PATH = ROOT / "data" / "generated" / "gem_seasonal_sample"
 SPLIT_FILE_NAMES = {"train": "train_sample.csv", "validation": "validation_sample.csv", "test": "test_sample.csv"}
 LABEL_COLUMN = "actual_kwh"
+_WEATHER_ONLY_COLUMNS = tuple(name for name in WEATHER_COLUMNS if name not in ("timestamp", "panel_angle_deg", LABEL_COLUMN))
 
 DATASET_PATH_ENV = "SOLAR_DATASET_PATH"
 DATASET_KIND_ENV = "SOLAR_DATASET_KIND"
@@ -59,13 +60,15 @@ PIPELINE_DATASET_SOURCE = DatasetSource(path=PIPELINE_DATASET_PATH, dataset_kind
 def default_dataset_source() -> DatasetSource:
     """Luan's pipeline dataset unless the environment points elsewhere.
 
-    The synthetic example dataset is always labeled MOCK/mock; any other path
-    defaults to LIVE/physics-derived unless the environment states its labels.
+    The two known datasets carry their own labels. Any other path must state its
+    dataset kind and label source in the environment; provenance is never guessed.
     """
     path = Path(os.environ.get(DATASET_PATH_ENV) or PIPELINE_DATASET_PATH)
-    is_example = path.resolve() == EXAMPLE_DATASET_PATH.resolve()
-    dataset_kind = os.environ.get(DATASET_KIND_ENV) or ("MOCK" if is_example else "LIVE")
-    label_source = os.environ.get(LABEL_SOURCE_ENV) or ("mock" if is_example else "physics-derived")
+    known = next((source for source in (EXAMPLE_DATASET_SOURCE, PIPELINE_DATASET_SOURCE) if path.resolve() == source.path.resolve()), None)
+    dataset_kind = os.environ.get(DATASET_KIND_ENV) or (known.dataset_kind if known else None)
+    label_source = os.environ.get(LABEL_SOURCE_ENV) or (known.label_source if known else None)
+    if dataset_kind is None or label_source is None:
+        raise DatasetError(f"{path} is not a known dataset: set {DATASET_KIND_ENV} and {LABEL_SOURCE_ENV} to declare its provenance")
     if dataset_kind not in _DATASET_KINDS:
         raise DatasetError(f"{DATASET_KIND_ENV} must be one of {_DATASET_KINDS}, got {dataset_kind!r}")
     if label_source not in _LABEL_SOURCES:
@@ -138,9 +141,14 @@ def _require_chronological(numbered: list[tuple[int, WeatherRow]], path: Path) -
     for (line, _), earlier, later in zip(numbered[1:], instants, instants[1:]):
         if later < earlier:
             raise DatasetError(f"{path} line {line}: rows are not in chronological order")
+    weather_by_hour: dict[datetime, tuple] = {}
     seen: set[tuple[datetime, float]] = set()
     for (line, row), instant in zip(numbered, instants):
         key = (instant, row["panel_angle_deg"])
         if key in seen:
-            raise DatasetError(f"{path} line {line}: duplicate row for {row['timestamp']} at {row['panel_angle_deg']:g} deg; rows are not in chronological order")
+            raise DatasetError(f"{path} line {line}: duplicate row for {row['timestamp']} at {row['panel_angle_deg']:g} deg")
         seen.add(key)
+        # Rows sharing an hour may differ only in panel angle and label; anything else would be silently dropped later.
+        weather = tuple(row[name] for name in _WEATHER_ONLY_COLUMNS)
+        if weather_by_hour.setdefault(instant, weather) != weather:
+            raise DatasetError(f"{path} line {line}: weather for {row['timestamp']} differs between panel-angle rows")

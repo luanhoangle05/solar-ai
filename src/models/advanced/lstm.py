@@ -46,6 +46,9 @@ class LstmConfig:
     batch_size: int = 64
     learning_rate: float = 3e-3
     seed: int = 20261004
+    # Share of training windows whose look-back is cut to a random shorter length, so the
+    # network also learns to predict daytime hours with little or no stored history.
+    history_dropout: float = 0.3
 
 
 DEFAULT_LSTM_CONFIG = LstmConfig()
@@ -141,6 +144,10 @@ class LstmPredictor:
     def __init__(self, network: _Network, scaler: FeatureScaler, history: HourlyHistory, sequence_length: int) -> None:
         self._network, self._scaler, self._history, self._sequence_length = network, scaler, history, sequence_length
 
+    def without_history(self) -> "LstmPredictor":
+        """The same trained network with an empty history store, as when no preceding hours are stored."""
+        return LstmPredictor(self._network, self._scaler, {}, self._sequence_length)
+
     def predict_kwh(self, weather: WeatherFeatures, candidate_angles_deg: tuple[float, ...], *, metadata: Metadata) -> list[CandidatePrediction]:
         windows = build_windows(at_candidate_angles(weather, candidate_angles_deg), self._history, self._sequence_length)
         predicted = _predict(self._network, self._scaler, windows)
@@ -164,12 +171,25 @@ def train_lstm(
     torch.manual_seed(config.seed)
     scaler = _fit_scaler(train_rows)
     training_history = hourly_history([*train_rows, *early_stopping_rows])
-    fit_inputs = _to_inputs(scaler, build_windows(train_rows, training_history, config.sequence_length))
+    fit_windows = _shorten_history(build_windows(train_rows, training_history, config.sequence_length), config)
+    fit_inputs = _to_inputs(scaler, fit_windows)
     stop_inputs = _to_inputs(scaler, build_windows(early_stopping_rows, training_history, config.sequence_length))
     fit_targets = _to_tensor(label_vector(train_rows) / scaler.target_scale)
     stop_targets = _to_tensor(label_vector(early_stopping_rows) / scaler.target_scale)
     network = _fit_network(fit_inputs, fit_targets, stop_inputs, stop_targets, config)
     return LstmPredictor(network, scaler, hourly_history(history_rows), config.sequence_length)
+
+
+def _shorten_history(windows: Windows, config: LstmConfig) -> Windows:
+    """Turn a random prefix of some windows into padding; the target step is always kept."""
+    rng = np.random.default_rng(config.seed)
+    count, length = windows.valid.shape
+    shortened = rng.random(count) < config.history_dropout
+    # Number of leading steps to hide: between 1 and all of the look-back steps.
+    hidden = np.where(shortened, rng.integers(1, max(length, 2), size=count), 0)
+    keep = np.arange(length)[np.newaxis, :] >= hidden[:, np.newaxis]
+    keep[:, -1] = True
+    return Windows(features=windows.features, valid=windows.valid & keep)
 
 
 def _fit_scaler(train_rows: Sequence[WeatherRow]) -> FeatureScaler:

@@ -72,7 +72,14 @@ class LoadWeatherRowsTest(unittest.TestCase):
     def test_rejects_duplicate_timestamp(self) -> None:
         path = self.write(list(WEATHER_COLUMNS), [VALID_ROW, VALID_ROW])
 
-        with self.assertRaisesRegex(DatasetError, "line 3.*chronological"):
+        with self.assertRaisesRegex(DatasetError, "line 3: duplicate row"):
+            load_weather_rows(path)
+
+    def test_rejects_weather_that_differs_between_angle_rows_of_one_hour(self) -> None:
+        other_angle_other_weather = [VALID_ROW[0], 99, *VALID_ROW[2:11], 50, 1.5]
+        path = self.write(list(WEATHER_COLUMNS), [VALID_ROW, other_angle_other_weather])
+
+        with self.assertRaisesRegex(DatasetError, "line 3: weather .* differs"):
             load_weather_rows(path)
 
     def test_rejects_wrong_number_of_values(self) -> None:
@@ -129,6 +136,11 @@ class DefaultDatasetSourceTest(unittest.TestCase):
 
         self.assertEqual(source.path, Path("data/processed/weather.csv"))
         self.assertEqual((source.dataset_kind, source.label_source), ("LIVE", "measured"))
+
+    def test_unknown_path_must_declare_its_provenance(self) -> None:
+        with mock.patch.dict(os.environ, {DATASET_PATH_ENV: "data/processed/weather.csv"}, clear=True):
+            with self.assertRaisesRegex(DatasetError, "not a known dataset"):
+                default_dataset_source()
 
     def test_rejects_unknown_dataset_kind(self) -> None:
         with mock.patch.dict(os.environ, {DATASET_KIND_ENV: "EXAMPLE"}, clear=True):

@@ -72,6 +72,7 @@ def build_report(source: DatasetSource) -> dict:
         "selected_model": selected,
         "selection_reason": selection_reason(validation, selected),
         "test_metrics": _test_metrics(tools, validation, split.test, metadata),
+        "lstm_without_history": _lstm_without_history(tools, validation, split, metadata),
         "decision_quality_source": oracle_source,
         "decision_quality": None if oracle is None else _decision_quality(tools, validation, split.test, oracle, metadata),
         "decision_quality_note": None if oracle is None else DECISION_QUALITY_NOTE,
@@ -135,6 +136,18 @@ def _test_metrics(tools: EvaluatedModelingTools, validation: list[ModelMetrics],
     return scored
 
 
+def _lstm_without_history(tools: EvaluatedModelingTools, validation: list[ModelMetrics], split, metadata: Metadata) -> dict | None:
+    """LSTM accuracy when no preceding hours are stored, as for a live forecast with an empty history."""
+    entry = next(item for item in validation if item["model"] == "lstm")
+    if entry["status"] == "UNAVAILABLE":
+        return None
+    predictor = tools.get_predictor("lstm").without_history()
+    return {
+        name: dataclasses.asdict(evaluate_predictor(predictor, rows, metadata=metadata))
+        for name, rows in (("validation", split.validation), ("test", split.test))
+    }
+
+
 def _log_summary(report: dict) -> None:
     for name, window in report["windows"].items():
         LOGGER.info("[%s] %d rows over %d hours, %s to %s", name, window["rows"], window["hours"], window["first"], window["last"])
@@ -142,6 +155,8 @@ def _log_summary(report: dict) -> None:
         for entry in report[name]:
             if entry["status"] != "UNAVAILABLE":
                 LOGGER.info("[%s] %s: RMSE %.4f, MAE %.4f, R2 %.4f", name, entry["model"], entry["rmse"], entry["mae"], entry["r2"])
+    for name, metrics in (report["lstm_without_history"] or {}).items():
+        LOGGER.info("[lstm with no stored history, %s] RMSE %.4f, MAE %.4f, R2 %.4f", name, metrics["rmse"], metrics["mae"], metrics["r2"])
     LOGGER.info("%s", report["selection_reason"])
     for replay in report["system_evaluation"]:
         LOGGER.info(

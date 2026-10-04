@@ -65,9 +65,9 @@
       "model": "lstm",
       "implementation": "pytorch",
       "status": "MOCK",
-      "mae": 0.05729238317856952,
-      "rmse": 0.08812162239635173,
-      "r2": 0.9977865046635075
+      "mae": 0.05596637131995418,
+      "rmse": 0.08578453941139118,
+      "r2": 0.9979023564529841
     }
   ],
   "unavailable_reasons": {
@@ -75,7 +75,7 @@
     "random_forest": "adapter not delivered yet"
   },
   "selected_model": "lstm",
-  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.08812 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
+  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.08578 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
   "test_metrics": [
     {
       "model": "linear_regression",
@@ -105,11 +105,23 @@
       "model": "lstm",
       "implementation": "pytorch",
       "status": "MOCK",
-      "mae": 0.054912295454251664,
-      "rmse": 0.08420144547179534,
-      "r2": 0.99748999700639
+      "mae": 0.05494212911229248,
+      "rmse": 0.08421791452749207,
+      "r2": 0.997489015041734
     }
   ],
+  "lstm_without_history": {
+    "validation": {
+      "mae": 0.060747397386151904,
+      "rmse": 0.09369129000812834,
+      "r2": 0.9974978572671664
+    },
+    "test": {
+      "mae": 0.049306180932413686,
+      "rmse": 0.08395445922296543,
+      "r2": 0.9975047004832205
+    }
+  },
   "decision_quality_source": "example-data formula, noise-free (data/example/README.md)",
   "decision_quality": {
     "boosting": {
@@ -122,11 +134,11 @@
     },
     "lstm": {
       "hours": 401,
-      "best_angle_match_rate": 0.9052369077306733,
-      "mean_regret_kwh": 0.00047894391165207665,
-      "max_regret_kwh": 0.015294690727500004,
-      "total_regret_kwh": 0.19205650857248274,
-      "mean_curve_error_kwh": 0.011044917535323785
+      "best_angle_match_rate": 0.9077306733167082,
+      "mean_regret_kwh": 0.00041297060482685404,
+      "max_regret_kwh": 0.012833765349149928,
+      "total_regret_kwh": 0.16560121253556848,
+      "mean_curve_error_kwh": 0.01037701800802094
     }
   },
   "decision_quality_note": "Each model's best candidate angle is compared with the true best angle according to the stated energy source, on test-window hours where the true energy depends on the angle. Regret is true kWh lost per hour.",
@@ -142,14 +154,14 @@
       "hours": 663,
       "energy_source": "example-data formula, noise-free (data/example/README.md)",
       "baseline_kwh": 1037.2636033251833,
-      "optimized_kwh": 1044.696075605761,
-      "energy_gain_kwh": 7.432472280577713,
-      "movement_cost_kwh_equivalent": 0.03,
-      "net_benefit_kwh_equivalent": 7.402472280577713,
-      "rotate_count": 2,
-      "hold_count": 661,
+      "optimized_kwh": 1044.6748547779882,
+      "energy_gain_kwh": 7.4112514528048905,
+      "movement_cost_kwh_equivalent": 0.06,
+      "net_benefit_kwh_equivalent": 7.351251452804891,
+      "rotate_count": 4,
+      "hold_count": 659,
       "stow_count": 0,
-      "unnecessary_moves_avoided": 38,
+      "unnecessary_moves_avoided": 44,
       "severe_safety_events": 0,
       "unsafe_rotations": 0,
       "error_hours": 0
@@ -157,15 +169,15 @@
     {
       "hours": 663,
       "energy_source": "model-predicted (lstm)",
-      "baseline_kwh": 1049.3639800770397,
-      "optimized_kwh": 1057.4526573062758,
-      "energy_gain_kwh": 8.088677229236055,
-      "movement_cost_kwh_equivalent": 0.03,
-      "net_benefit_kwh_equivalent": 8.058677229236055,
-      "rotate_count": 2,
-      "hold_count": 661,
+      "baseline_kwh": 1055.193048918678,
+      "optimized_kwh": 1062.6512576192908,
+      "energy_gain_kwh": 7.458208700612886,
+      "movement_cost_kwh_equivalent": 0.06,
+      "net_benefit_kwh_equivalent": 7.398208700612886,
+      "rotate_count": 4,
+      "hold_count": 659,
       "stow_count": 0,
-      "unnecessary_moves_avoided": 38,
+      "unnecessary_moves_avoided": 44,
       "severe_safety_events": 0,
       "unsafe_rotations": 0,
       "error_hours": 0
