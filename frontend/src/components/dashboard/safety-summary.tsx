@@ -6,7 +6,8 @@ import type { SafetyResult } from "@/types/solar";
 
 export function SafetySummary({ safety }: { safety: SafetyResult }) {
   return (
-    <DashboardPanel title="Safety Checks" icon={ShieldCheck} className="dashboard-safety" action={<Badge variant={safety.passed ? "success" : "danger"}>{safety.passed ? "PASSED" : "BLOCKED"}</Badge>}>
+    <DashboardPanel title="Safety Validation" icon={ShieldCheck} className="dashboard-safety" action={<Badge variant={safety.passed ? "success" : "danger"}>{safety.passed ? "PASSED" : "BLOCKED"}</Badge>}>
+      <p className="safety-count">{safety.checks.length} checks · {safety.checks.filter(check => !check.passed).length} failed</p>
       <ul className="safety-checks">
         {safety.checks.map((check, index) => {
           const Icon = check.passed ? CheckCircle2 : XCircle;

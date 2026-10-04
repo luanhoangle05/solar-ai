@@ -6,7 +6,7 @@ import type { ModelMetrics } from "@/types/solar";
 
 export function SelectedModelSummary({ model }: { model: ModelMetrics | null }) {
   return (
-    <DashboardPanel title="Selected Prediction Model" icon={BrainCircuit} className="dashboard-model" action={model && <Badge variant={model.status === "MOCK" ? "warning" : model.status === "VALIDATED" ? "success" : "secondary"}>{model.status}</Badge>}>
+    <DashboardPanel title="Selected Model" icon={BrainCircuit} className="dashboard-model" action={model && <Badge variant={model.status === "MOCK" ? "warning" : model.status === "VALIDATED" ? "success" : "secondary"}>{model.status}</Badge>}>
       {model ? <>
         <p className="text-xl font-semibold">{formatModelName(model.model)}</p>
         <p className="mt-1 text-xs text-muted-foreground">Implementation: {model.implementation || "Unavailable"}</p>
@@ -16,7 +16,7 @@ export function SelectedModelSummary({ model }: { model: ModelMetrics | null }) 
           <div><dt><abbr title="Coefficient of determination">R²</abbr></dt><dd>{formatMetric(model.r2)}</dd></div>
         </dl>
         <p className="dashboard-note">{model.status === "MOCK" ? "Synthetic fixture metrics · not real-world model accuracy." : "Model status and metrics are supplied by the backend contract."}</p>
-      </> : <p className="dashboard-empty">Model unavailable. No model selected.</p>}
+      </> : <p className="dashboard-empty">Prediction model unavailable.</p>}
     </DashboardPanel>
   );
 }
