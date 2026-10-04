@@ -30,7 +30,7 @@ from src.models.advanced import lstm
 from src.models.data_loader import ROOT, default_dataset_source, hourly_weather, load_dataset_split
 from src.models.evaluation import ModelCandidate
 from src.service.live_data_agent import current_hour_request, recommend_live
-from src.service.recommendation_service import build_metadata, build_modeling_tools, recommend_for_recorded_hour, save_recommendation
+from src.service.recommendation_service import build_metadata, build_modeling_tools, recommend_for_recorded_hour, recommend_for_zones, save_recommendation
 
 
 LOGGER = logging.getLogger(__name__)
@@ -57,12 +57,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--live", action="store_true", help="fetch the current hour's forecast for the demo site instead of replaying a dataset hour")
     parser.add_argument("--timestamp", help="hour to run, exactly as written in the dataset; default is the sunniest test-window hour")
+    parser.add_argument("--zone-angles", help="comma-separated starting angle for each of the four zones, for example 60,45,35,30; runs the agents once per zone")
     parser.add_argument("--angle", type=float, default=DEFAULT_ANGLE_DEG, help="current angle of the controlled row in degrees")
     parser.add_argument("--skip-lstm", action="store_true", help="do not train the LSTM (much faster); it is reported UNAVAILABLE")
     parser.add_argument("--no-llm", action="store_true", help="templated explanations only, no LLM calls")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     arguments = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    if arguments.zone_angles and arguments.live:
+        raise SystemExit("--zone-angles works with a recorded hour, not with --live")
 
     source = default_dataset_source()
     if arguments.live:
@@ -84,6 +87,9 @@ def main() -> None:
     reasoner = None if arguments.no_llm else load_reasoner()
     LOGGER.info("LLM explanations: %s", "off" if reasoner is None else f"on ({reasoner.model})")
     run_id = f"run-{utc_now_iso()}"
+    if arguments.zone_angles:
+        write_zone_runs(arguments, source, hour, modeling_tools, reasoner, run_id)
+        return
     if arguments.live:
         payload = recommend_live(source, request, modeling_tools, DEFAULT_CONFIG, current_angle_deg=arguments.angle, control_target_id=CONTROL_TARGET_ID, run_id=run_id, reasoner=reasoner)
     else:
@@ -102,6 +108,21 @@ def main() -> None:
     for error in payload["errors"]:
         LOGGER.info("Recorded error [%s] %s: %s", error["agent"], error["code"], error["message"])
     LOGGER.info("Wrote %s", path)
+
+
+def write_zone_runs(arguments: argparse.Namespace, source, hour: WeatherFeatures, modeling_tools, reasoner, run_id: str) -> None:
+    """One file per zone: the first at --output, the rest beside it with the zone id in the name."""
+    angles = [float(value) for value in arguments.zone_angles.split(",")]
+    payloads = recommend_for_zones(source, hour, modeling_tools, DEFAULT_CONFIG, zone_angles=angles, run_id=run_id, reasoner=reasoner)
+    paths = []
+    for index, payload in enumerate(payloads):
+        zone_id = payload["farm_status"]["zones"][index]["zone_id"]
+        path = arguments.output if index == 0 else arguments.output.with_name(f"{arguments.output.stem}.{zone_id}{arguments.output.suffix}")
+        paths.append(save_recommendation(payload, path))
+        decision, optimization = payload["decision"], payload["optimization"]
+        net = "unavailable" if optimization is None else f"{optimization['net_benefit_kwh_equivalent']:+.4f} kWh-eq"
+        LOGGER.info("%s at %g deg (control row %s): %s to %g deg; net benefit %s", zone_id, angles[index], payload["metadata"]["control_target_id"], decision["action"], decision["target_angle_deg"], net)
+    LOGGER.info("Wrote %s", ", ".join(str(path) for path in paths))
 
 
 if __name__ == "__main__":
