@@ -19,7 +19,9 @@ EARLY_STOPPING_SET_NAME = "early_stopping"
 class BoostingConfig:
     """Training hyperparameters; early stopping watches the tail of the train window."""
 
-    num_boost_round: int = 600
+    # An upper limit; early stopping picks the actual count. Raised from 600 after the grid search in
+    # scripts/tune_boosting.py: the model was still improving at 600 rounds on the full dataset.
+    num_boost_round: int = 3000
     early_stopping_rounds: int = 40
     max_depth: int = 6
     learning_rate: float = 0.05
