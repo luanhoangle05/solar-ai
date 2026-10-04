@@ -37,8 +37,7 @@
 .sfs-scene .fx-map { grid-column:auto; grid-row:auto; }
 .sfs-scene .f3-tracking { position:absolute; top:15px; right:16px; max-width:min(62%,560px); padding:7px 11px; border-radius:6px; border:1px solid #f5ad2f; background:#1d1606e6; color:#ffd98a; font-size:10px; letter-spacing:.3px; line-height:1.5; pointer-events:none; }
 .lab { display:flex; flex-direction:column; flex:1; }
-.lab-canvas { position:relative; height:520px; background:#7fa6c9; touch-action:none; cursor:grab; }
-.lab-canvas:active { cursor:grabbing; }
+.lab-canvas { position:relative; height:520px; background:#7fa6c9; touch-action:none; }
 .lab-canvas canvas { display:block; touch-action:none; }
 .lab-tag { position:absolute; top:14px; left:14px; padding:7px 11px; border-radius:6px; border:1px solid #f5ad2f; background:#1d1606e6; color:#ffd98a; font-size:10px; letter-spacing:.3px; pointer-events:none; }
 .lab-readout { position:absolute; left:14px; bottom:14px; display:grid; grid-template-columns:repeat(3,auto); gap:8px; pointer-events:none; }
@@ -50,6 +49,8 @@
 .lab-reset { position:absolute; top:14px; right:14px; padding:7px 12px; border-radius:6px; border:1px solid #2c495c; background:#071a2de6; color:#cfe2f3; font-size:11px; cursor:pointer; }
 .lab-reset:hover, .lab-reset:focus-visible { border-color:#2f8de0; color:#fff; }
 .lab-stage { height:100%; }
+.lab-stage[data-grip=hover] canvas { cursor:grab; }
+.lab-stage[data-grip=held] canvas { cursor:grabbing; }
 .lab-stage:focus-visible { outline:2px solid #2f8de0; outline-offset:-2px; }
 .lab-note { border-top:1px solid #1b4467; padding:10px 14px 13px; font-size:10px; line-height:1.6; color:#87a6bd; background:#071c33; }
 .sfs-row { display:flex; flex-direction:column; gap:12px; border:1px solid #1b4467; border-radius:11px; padding:14px; background:#071c33; min-width:0; }

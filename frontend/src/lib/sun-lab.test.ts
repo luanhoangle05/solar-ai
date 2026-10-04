@@ -21,4 +21,5 @@ describe("single-row sun lab geometry", () => {
     expect(sunAngleFromPoint(6, -5, 1)).toBeCloseTo(135);
   });
   it("clamps a pointer below the horizon to the lowest sun", () => expect(sunAngleFromPoint(-3, 5, 1)).toBe(sunLab.minSunDeg));
+  it("keeps the sun at the far end of the arc when the pointer drops below the horizon behind the row", () => expect(sunAngleFromPoint(-3, -5, 1)).toBe(sunLab.maxSunDeg));
 });

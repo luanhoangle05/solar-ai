@@ -17,6 +17,8 @@ export function clampSunAngle(sunDeg: number): number {
 
 /** The sun angle for a pointer position in the tilt plane, given the height of the row's pivot. */
 export function sunAngleFromPoint(height: number, forward: number, pivotHeight: number): number {
+  // Below the horizon the sun stops at the end of the arc on the pointer's side, instead of jumping to the other end.
+  if (height < pivotHeight) return forward >= 0 ? sunLab.minSunDeg : sunLab.maxSunDeg;
   return clampSunAngle(Math.atan2(height - pivotHeight, forward) * 180 / Math.PI);
 }
 
