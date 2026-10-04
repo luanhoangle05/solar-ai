@@ -27,6 +27,8 @@ MODEL = 'gem_seamless'
 ROOT = Path(__file__).resolve().parents[1] / 'data/generated/gem_2023_2025'
 HOUR = timedelta(hours=1)
 YEARS = (2023, 2024, 2025)
+APPROVED_ACCEPTED_HOURS = {'2023': 8739, '2024': 8768, '2025': 8743}
+NEGATIVE_IRRADIANCE_ISSUES = {'ghi_wm2: cannot be negative', 'dhi_wm2: cannot be negative'}
 
 
 def stamp(value):
@@ -128,6 +130,7 @@ def audit_chunk(payload, provenance, start, end):
             values = hourly.get(provider)
             if i is None or not isinstance(values, list) or i >= len(values) or not _finite_number(values[i]):
                 bad_values[field] += 1
+        weather, issues = None, []
         try:
             weather = _map_response(payload, t, t+HOUR,
                                     datetime.fromisoformat(provenance['fetched_at']),
@@ -138,7 +141,10 @@ def audit_chunk(payload, provenance, start, end):
         except (ValueError, RuntimeError) as exc:
             reason = str(exc)
             reasons[reason] += 1
-            exclusions.append(dict(timestamp=stamp(t), reason=reason))
+            exclusions.append(dict(timestamp=stamp(t), reason=reason, year=t.year,
+                month=t.strftime('%Y-%m'), raw_ghi_wm2=weather['ghi_wm2'] if weather else None,
+                raw_dhi_wm2=weather['dhi_wm2'] if weather else None,
+                policy_a_eligible=bool(issues) and set(issues)<=NEGATIVE_IRRADIANCE_ISSUES))
             continue
         accepted.append(weather)
         diagnostic += int(weather['wind_gust_kmh'] < weather['wind_speed_kmh'])
@@ -152,6 +158,31 @@ def audit_chunk(payload, provenance, start, end):
                   completeness_pct=100*len(accepted)/len(expected),
                   missing_periods=gap_ranges(missing), unusable_periods=gap_ranges(excluded_times))
     return accepted, report
+
+
+def publication_allowed(reports, yearly, failures):
+    exclusions = [x for r in reports for x in r['exclusions']]
+    return (not failures and len(reports)==36
+        and {y:r['accepted_hours'] for y,r in yearly.items()}==APPROVED_ACCEPTED_HOURS
+        and len(exclusions)==54 and len({x['timestamp'] for x in exclusions})==54
+        and all(x['policy_a_eligible'] for x in exclusions)
+        and all(r['retrieved_hours']==r['expected_hours'] and r['duplicate_timestamps']==0
+                and not r['invalid_required_value_counts']
+                and r['accepted_hours']+len(r['exclusions'])==r['expected_hours'] for r in reports))
+
+
+def exclusion_provenance(coverage):
+    exclusions = [x for r in coverage.get('months', []) for x in r['exclusions']]
+    return dict(policy='Policy A: omit entire hours failing only negative GHI/DHI validation',
+        excluded_hours=len(exclusions), exclusions=exclusions, rows_lost=7*len(exclusions),
+        coverage_by_year={y:dict(expected_hours=r['expected_hours'],
+            retrieved_hours=r.get('retrieved_hours', r['expected_hours']),
+            accepted_hours=r['accepted_hours'],
+            before_exclusion_pct=100*r.get('retrieved_hours', r['expected_hours'])/r['expected_hours'],
+            after_exclusion_pct=100*r['accepted_hours']/r['expected_hours'])
+            for y,r in coverage['years'].items()},
+        raw_provider_caches='Preserved unchanged; SHA256 verified before reuse',
+        corrections='None: no interpolation, clamping, replacement, or source substitution')
 
 
 def audit(root, offline=False):
@@ -191,9 +222,9 @@ def audit(root, offline=False):
                 counts.update(r[field])
             summary[field] = dict(counts)
         yearly[str(year)] = summary
-    passed = not failures and all(r['completeness_pct']==100 and r['duplicate_timestamps']==0 for r in reports)
+    passed = publication_allowed(reports, yearly, failures)
     result = dict(status='PASS' if passed else 'NOT READY', years=yearly, months=reports,
-                  failed_chunks=failures, policy='Require every expected hour; no interpolation or alternate source')
+                  failed_chunks=failures, policy='Policy A: exactly 54 negative-GHI/DHI hours excluded; all other failures block')
     write_json(root/'coverage_report.json', result)
     return observations, sources, result
 
@@ -244,7 +275,8 @@ def generate(root, observations, sources, coverage):
         generated_at=stamp(datetime.now(timezone.utc)), sources=sources, variables=VARIABLES,
         reference_pv=pv_metadata(), candidate_angles=list(DEFAULT_CONFIG.candidate_angles_deg),
         label_semantics='physics-derived AC kWh per 20-panel row per one-hour interval',
-        splits=splits, exclusions=[], source_code_commit=code,
+        splits=splits, exclusions=exclusion_provenance(coverage)['exclusions'],
+        exclusion_provenance=exclusion_provenance(coverage), source_code_commit=code,
         source_code_note='Generator may be uncommitted; exact source hashes below identify executed code',
         source_sha256={p:digest((repo/p).read_bytes()) for p in code_paths},
         limitations=['Reference simulation, not measured generation', 'Archived stitched forecasts lack fixed forecast lead time',
@@ -274,10 +306,13 @@ def check_rows(df, physics, coverage):
     if list(groups.index) != sorted(groups.index):
         raise ValueError('Unordered timestamps')
     timestamps = pd.to_datetime(df.timestamp, utc=True)
+    excluded = {pd.Timestamp(x['timestamp']) for r in coverage.get('months', []) for x in r['exclusions']}
+    if set(timestamps)&excluded:
+        raise ValueError('Excluded weather hour was published')
     splits = {}
     for year, split in zip(YEARS, ('train','validation','test')):
         part = df[timestamps.dt.year==year]
-        expected = coverage['years'][str(year)]['expected_hours']
+        expected = coverage['years'][str(year)]['accepted_hours']
         if part.timestamp.nunique()!=expected or len(part)!=expected*7:
             raise ValueError('Incomplete year or split')
         splits[split] = dict(year=year, rows=len(part), hours=expected,
@@ -301,7 +336,7 @@ def check_rows(df, physics, coverage):
                                  'panel_angle_deg','temperature_c','cloud_cover_pct')}
     return dict(status='PASS', row_count=len(df), schema=list(df.columns), missing_values=0,
         duplicate_pairs=0, target_excluded_from_features=True, split_overlap=0,
-        fixed_physics_parameters_not_fitted=True,
+        fixed_physics_parameters_not_fitted=True, exclusion_provenance=exclusion_provenance(coverage),
         actual_kwh=dict(min=float(df.actual_kwh.min()), median=float(df.actual_kwh.median()),
                         mean=float(df.actual_kwh.mean()), max=float(df.actual_kwh.max())),
         nighttime_rows=int(night.sum()), nighttime_nonzero=0,
@@ -331,11 +366,20 @@ automatically treat it as a raw numeric feature. Keep all seven tilt variants
 of an hour together. Build any temporal sequences on actual hourly timestamps,
 not on the seven successive angle rows as though they were successive hours.
 
+Policy A excludes 54 complete weather hours (378 angle rows) with invalid
+negative GHI/DHI. These small timestamp gaps are intentional. Sequence models
+must respect actual timestamp continuity and pad missing history; neighboring
+CSV rows are not necessarily consecutive physical hours. Raw provider caches
+are preserved unchanged, with no interpolation, clamping or source substitution.
+Exact exclusions, raw values and before/after coverage are in both manifest.json
+and quality_report.json. Accepted hours: 8739 / 8768 / 8743; modeling rows:
+61173 / 61376 / 61201 (183750 total).
+
 Fit preprocessing only on training data. Tune with training and validation;
 do not fit preprocessing on validation/test. Keep test held out of all tuning.
 Generation uses fixed approved physics parameters, not fitted parameters.
 
-Read manifest.json, coverage_report.json, quality_report.json, split_summary.json.
+Read manifest.json, quality_report.json, split_summary.json.
 The manifest records source hashes, assumptions and limitations. Verify byte
 hashes without converting line endings. Raw provider caches are not ML features.
 Unknown forecast issuance is allowed only for offline historical validation;

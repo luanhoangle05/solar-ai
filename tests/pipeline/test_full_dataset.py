@@ -134,7 +134,7 @@ class FullDatasetTests(unittest.TestCase):
 
     def small_complete_fixture(self):
         observations=[]
-        coverage={'status':'PASS','years':{str(y):{'expected_hours':1} for y in full.YEARS}}
+        coverage={'status':'PASS','years':{str(y):{'expected_hours':1,'accepted_hours':1} for y in full.YEARS}}
         for year in full.YEARS:
             start=datetime(year,1,1,tzinfo=timezone.utc)
             payload=deepcopy(self.payload)
@@ -170,6 +170,77 @@ class FullDatasetTests(unittest.TestCase):
                     frame.drop(columns=['actual_kwh']),frame.iloc[1:]):
             with self.assertRaises(ValueError):
                 full.check_rows(bad,physics,coverage)
+
+    def test_policy_a_preserves_raw_values_and_rejects_other_failures(self):
+        for extra in (None, 'wind_speed_10m', 'direct_normal_irradiance'):
+            with self.subTest(extra=extra):
+                payload=deepcopy(self.payload)
+                payload['hourly']['shortwave_radiation'][1]=-0.5
+                payload['hourly']['diffuse_radiation'][1]=-46
+                if extra:
+                    payload['hourly'][extra]=[-1,-1]
+                original=deepcopy(payload)
+                rows,report=full.audit_chunk(payload,self.meta,self.start,self.end)
+                self.assertEqual(rows,[])
+                self.assertEqual(payload,original)
+                exclusion=report['exclusions'][0]
+                self.assertEqual(exclusion['policy_a_eligible'],extra is None)
+                self.assertEqual(exclusion['raw_ghi_wm2'],-0.5)
+                self.assertEqual(exclusion['raw_dhi_wm2'],-46)
+                self.assertEqual(exclusion['timestamp'],'2023-01-01T00:00:00Z')
+                self.assertEqual(exclusion['month'],'2023-01')
+
+    def test_policy_gate_exact_counts_and_other_failures(self):
+        reports=[]
+        yearly={}
+        for start,end in full.months():
+            count=int((end-start)/full.HOUR)
+            excluded=({2023:21,2024:16,2025:17}[start.year] if start.month==1 else 0)
+            reports.append(dict(expected_hours=count,retrieved_hours=count,duplicate_timestamps=0,
+                invalid_required_value_counts={},accepted_hours=count-excluded,
+                exclusions=[dict(timestamp=full.stamp(start+i*full.HOUR),policy_a_eligible=True)
+                            for i in range(excluded)]))
+            yearly.setdefault(str(start.year),dict(accepted_hours=0))['accepted_hours']+=count-excluded
+        self.assertTrue(full.publication_allowed(reports,yearly,[]))
+        for mutation in ('count','reason','null','duplicate','missing','failed','duplicate_exclusion'):
+            with self.subTest(mutation=mutation):
+                r,y=deepcopy(reports),deepcopy(yearly)
+                failures=[]
+                if mutation=='count': y['2023']['accepted_hours']-=1
+                if mutation=='reason': r[0]['exclusions'][0]['policy_a_eligible']=False
+                if mutation=='null': r[0]['invalid_required_value_counts']={'ghi_wm2':1}
+                if mutation=='duplicate': r[0]['duplicate_timestamps']=1
+                if mutation=='missing': r[0]['retrieved_hours']-=1
+                if mutation=='failed': failures=['HTTP failure']
+                if mutation=='duplicate_exclusion': r[0]['exclusions'][1]=r[0]['exclusions'][0]
+                self.assertFalse(full.publication_allowed(r,y,failures))
+
+    def test_exclusion_provenance_and_no_angle_rows_for_rejected_hour(self):
+        observations,coverage=self.small_complete_fixture()
+        rejected='2023-01-01T01:00:00Z'
+        exclusion=dict(timestamp=rejected,reason='ghi_wm2: cannot be negative',
+                       raw_ghi_wm2=-1,raw_dhi_wm2=0,year=2023,month='2023-01',policy_a_eligible=True)
+        coverage['months']=[dict(exclusions=[exclusion])]
+        coverage['years']['2023']['expected_hours']=2
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            full.generate(root,observations,[],coverage)
+            frame=pd.read_csv(root/'full_dataset.csv')
+            self.assertNotIn(rejected,frame.timestamp.values)
+            manifest=json.loads((root/'manifest.json').read_text())
+            quality=json.loads((root/'quality_report.json').read_text())
+            provenance=quality['exclusion_provenance']
+            self.assertEqual(provenance,manifest['exclusion_provenance'])
+            self.assertEqual(provenance['rows_lost'],7)
+            self.assertEqual(provenance['exclusions'],[exclusion])
+            self.assertEqual(provenance['coverage_by_year']['2023']['after_exclusion_pct'],50)
+        rows,physics=[],[]
+        for weather in observations:
+            r,p=full.expand_hour(weather,full.DEMO_LATITUDE_DEG,full.DEMO_LONGITUDE_DEG)
+            rows.extend(r); physics.extend(p)
+        coverage['months'][0]['exclusions'][0]['timestamp']=rows[0]['timestamp']
+        with self.assertRaisesRegex(ValueError,'Excluded weather hour'):
+            full.check_rows(pd.DataFrame(rows,columns=full.WEATHER_COLUMNS),physics,coverage)
 
 
 if __name__=='__main__':

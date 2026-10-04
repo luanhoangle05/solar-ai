@@ -3,11 +3,11 @@
 Run from the repository root with the existing Python environment:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scripts.build_full_dataset --audit-only
+.\.venv\Scripts\python.exe -m scripts.build_full_dataset --audit-only --offline
 .\.venv\Scripts\python.exe -m scripts.build_full_dataset --offline
 ```
 
-The first command acquires/audits 36 UTC calendar-month chunks for 2023-2025.
+The first command audits the existing 36 cached UTC calendar-month chunks for 2023-2025.
 Each includes the following month's first timestamp for the existing T+1
 aggregate mapping. Expected weather intervals are 8,760 / 8,784 / 8,760.
 The site comes from common configuration; the model is explicitly gem_seamless.
@@ -21,10 +21,12 @@ be retried by rerunning. Corrupt/incomplete cache pairs stop that chunk and must
 be inspected; they are never silently replaced. Acquisition progress is saved
 after each chunk; coverage_report.json aggregates yearly and monthly results.
 
-The publication gate deliberately requires every hour to be individually valid.
-Missing timestamps and present-but-invalid hours are reported separately, with
-exact excluded interval starts and reasons. Negative irradiance remains a hard
-failure. Wind/gust ordering remains only a diagnostic for otherwise valid hours.
+The approved Policy A excludes whole timestamp groups failing hard validation
+only for negative GHI/DHI. Shared validation remains unchanged. Missing hours,
+duplicate timestamps, null/nonfinite values, other validation failures and failed
+chunks still block publication. The gate requires exactly 54 unique exclusions
+and accepted yearly hours 8,739 / 8,768 / 8,743. Count differences stop publication.
+Wind/gust ordering remains only a diagnostic for otherwise valid hours.
 
 If coverage passes, the offline command uses the existing reference PV model
 and midpoint solar implementation. It checks every row and repeats all hourly
@@ -34,11 +36,19 @@ overwritten. Interrupted unpublished files may remain in publication_pending;
 they are not a completed dataset. A complete publication includes all eight
 required outputs and matching manifest hashes.
 
-Current acquisition found all expected timestamps, but 54 hours have negative
-GHI and DHI (21 in 2023, 16 in 2024, 17 in 2025). These values range from -46 to
--0.5 W/m2. No canonical full dataset was published. Exact periods and all monthly
-completeness figures are in coverage_report.json. Provider cause is unconfirmed.
-Do not relax validation or publish an incomplete dataset without a team decision.
+All expected timestamps were retrieved, but 54 nighttime hours have negative
+GHI and DHI (21 in 2023, 16 in 2024, 17 in 2025), from -46 to -0.5 W/m2.
+Provider cause is unconfirmed. No angle variants are generated for these hours:
+378 rows are omitted, leaving 183,750 rows. Official UTC year splits are 2023
+train (61,173), 2024 validation (61,376), 2025 test (61,201); never percentage
+or random split. Raw caches and the seasonal sample remain unchanged.
+
+Both manifest.json and quality_report.json retain exact exclusion timestamps,
+reasons, raw GHI/DHI, year/month, coverage before/after and lost row count.
+No interpolation, clamping, replacement or source substitution occurs.
+README_DUY.md warns about gaps: sequence models must use actual timestamps,
+stop look-back at missing hours and pad history rather than bridge a gap.
+Verify Duy's existing LSTM against the actual gaps before final handoff.
 
 Tests are offline:
 
