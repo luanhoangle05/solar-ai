@@ -5,18 +5,18 @@ import { Environment, OrbitControls, Sky } from "@react-three/drei";
 import { AdditiveBlending, Plane, Raycaster, Vector2, Vector3, type Group } from "three";
 import { makeModuleTexture, makeRadialTexture } from "@/components/farm-3d/farm-3d-scene";
 import { sceneDimensions } from "@/lib/farm-3d";
-import { clampSunAngle, getSunLabState, sunAngleFromPoint, sunLab, type EvaluatedRange, type SunLabState } from "@/lib/sun-lab";
+import { clampSunPoint, getSunLabState, sunLab, type EvaluatedRange, type SunLabState, type SunPoint } from "@/lib/sun-lab";
 import { formatAngle } from "@/lib/formatters";
 
 // Presentation units, like the farm scene: none of these describe measured hardware.
-const lab = { panels: 6, pivotHeight: 1.6, sunRadius: 6.4, sunGrabRadius: 1.7, glowSize: 4.2, heldGlowSize: 5.6, keyStepDeg: 2, pageStepDeg: 10, camera: [9.2, 3.6, 9.4] as [number, number, number], lookAt: [0, 3.3, 0] as [number, number, number] };
-// Rotation never turns the camera edge-on to the plane the sun moves in (from the side or from above), so a drag maps to a point on the arc; it also stays above the ground.
-const orbit = { minDistance: 4, maxDistance: 40, minAzimuth: 0.3, maxAzimuth: Math.PI - 0.3, minPolar: 0.35, maxPolar: Math.PI / 2 - 0.02 };
-// The sun moves in the vertical plane x = 0.
-const sunPlane = new Plane(new Vector3(1, 0, 0), 0);
+const lab = { panels: 6, pivotHeight: 1.6, sunGrabRadius: 1.7, glowSize: 4.2, heldGlowSize: 5.6, keyStep: 0.4, camera: [9.2, 3.6, 9.4] as [number, number, number], lookAt: [0, 3.3, 0] as [number, number, number] };
+// The view turns all the way round the row; it only stays above the ground.
+const orbit = { minDistance: 4, maxDistance: 45, maxPolar: Math.PI / 2 - 0.02 };
 type SunGrip = "free" | "hover" | "held";
 const toRadians = (degrees: number) => degrees * Math.PI / 180;
-const sunPosition = (sunDeg: number): [number, number, number] => [0, lab.pivotHeight + lab.sunRadius * Math.sin(toRadians(sunDeg)), lab.sunRadius * Math.cos(toRadians(sunDeg))];
+const toScene = (sun: SunPoint): [number, number, number] => [sun.side, lab.pivotHeight + sun.height, sun.forward];
+// Keyboard equivalent of dragging the sun. In the opening view, further behind the row is further right.
+const keySteps: Record<string, Partial<SunPoint>> = { ArrowRight: { forward: -lab.keyStep }, ArrowLeft: { forward: lab.keyStep }, ArrowUp: { height: lab.keyStep }, ArrowDown: { height: -lab.keyStep }, PageUp: { side: lab.keyStep }, PageDown: { side: -lab.keyStep } };
 
 /** The row of modules on its torque tube and posts; it glides to each new tilt instead of snapping. */
 function Row({ tiltDeg }: { tiltDeg: number }) {
@@ -43,10 +43,10 @@ function Row({ tiltDeg }: { tiltDeg: number }) {
   </group>;
 }
 
-function Scene({ sunDeg, tiltDeg, onSun, onGrip, resetSignal }: { sunDeg: number; tiltDeg: number; onSun: (sunDeg: number) => void; onGrip: (grip: SunGrip) => void; resetSignal: number }) {
+function Scene({ sun, tiltDeg, onSun, onGrip, resetSignal }: { sun: SunPoint; tiltDeg: number; onSun: (sun: SunPoint) => void; onGrip: (grip: SunGrip) => void; resetSignal: number }) {
   const [dragging, setDragging] = useState(false);
-  const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const [hovered, setHovered] = useState(false);
+  const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const camera = useThree(state => state.camera), canvas = useThree(state => state.gl.domElement);
   const endDrag = useRef<(() => void) | null>(null);
   useEffect(() => () => endDrag.current?.(), []);
@@ -57,21 +57,26 @@ function Scene({ sunDeg, tiltDeg, onSun, onGrip, resetSignal }: { sunDeg: number
   useEffect(() => { if (resetSignal > 0) controls.current?.reset(); }, [resetSignal]);
   const glow = useMemo(() => makeRadialTexture([[0, "rgba(255,255,250,1)"], [0.06, "rgba(255,252,236,.95)"], [0.14, "rgba(255,240,200,.5)"], [0.4, "rgba(255,226,170,.1)"], [1, "rgba(255,220,165,0)"]]), []);
   useEffect(() => () => glow.dispose(), [glow]);
-  const position = sunPosition(sunDeg);
+  const position = toScene(sun);
   // The reflection map only needs the sky's general look, so it keeps the starting sun.
-  const reflectedSky = useMemo(() => <Sky distance={900} sunPosition={sunPosition(sunLab.startSunDeg)} turbidity={2.2} rayleigh={1.6}/>, []);
+  const reflectedSky = useMemo(() => <Sky distance={900} sunPosition={toScene(sunLab.start)} turbidity={2.2} rayleigh={1.6}/>, []);
   // Holding the sun with the main button moves the sun; the camera controls are switched off at once so the same press does not also turn the view.
-  // From then on the pointer is followed on the window itself, so the drag keeps working wherever the pointer goes until the button is released.
+  // The sun slides across the plane that faces the viewer, so it goes wherever the pointer goes; turning the view first lets it be moved in any direction.
+  // The pointer is followed on the window itself, so the drag keeps working until the button is released.
   function grab(event: ThreeEvent<PointerEvent>) {
     if (event.nativeEvent.button !== 0 || endDrag.current) return;
     event.stopPropagation();
     if (controls.current) controls.current.enabled = false;
-    const raycaster = new Raycaster(), pointer = new Vector2(), hit = new Vector3();
+    const held = new Vector3(...position), raycaster = new Raycaster(), pointer = new Vector2(), hit = new Vector3();
+    const dragPlane = new Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new Vector3()), held);
+    // Where on the sun it was picked up, so it does not jump to centre itself under the pointer.
+    const offset = event.ray.intersectPlane(dragPlane, hit) ? held.clone().sub(hit) : new Vector3();
     const follow = (move: PointerEvent) => {
       const box = canvas.getBoundingClientRect();
       pointer.set((move.clientX - box.left) / box.width * 2 - 1, -((move.clientY - box.top) / box.height) * 2 + 1);
       raycaster.setFromCamera(pointer, camera);
-      if (raycaster.ray.intersectPlane(sunPlane, hit)) onSun(sunAngleFromPoint(hit.y, hit.z, lab.pivotHeight));
+      if (!raycaster.ray.intersectPlane(dragPlane, hit)) return;
+      hit.add(offset); onSun({ side: hit.x, height: hit.y - lab.pivotHeight, forward: hit.z });
     };
     const stop = () => {
       window.removeEventListener("pointermove", follow); window.removeEventListener("pointerup", stop); window.removeEventListener("pointercancel", stop);
@@ -81,15 +86,13 @@ function Scene({ sunDeg, tiltDeg, onSun, onGrip, resetSignal }: { sunDeg: number
     endDrag.current = stop; setDragging(true);
   }
   return <>
-    <OrbitControls ref={controls} enabled={!dragging} target={lab.lookAt} enablePan minDistance={orbit.minDistance} maxDistance={orbit.maxDistance} minAzimuthAngle={orbit.minAzimuth} maxAzimuthAngle={orbit.maxAzimuth} minPolarAngle={orbit.minPolar} maxPolarAngle={orbit.maxPolar}/>
+    <OrbitControls ref={controls} enabled={!dragging} target={lab.lookAt} enablePan minDistance={orbit.minDistance} maxDistance={orbit.maxDistance} maxPolarAngle={orbit.maxPolar}/>
     <Sky distance={900} sunPosition={position} turbidity={1.6} rayleigh={2.2} mieCoefficient={0.003} mieDirectionalG={0.8}/>
     <Environment resolution={128}>{reflectedSky}</Environment>
     <ambientLight intensity={0.3}/><hemisphereLight args={["#cfe2ff", "#7a8055", 1.3]}/>
-    <directionalLight castShadow color="#ffe6c4" position={[position[0] + 1.5, position[1], position[2]]} intensity={4.4} shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.03} shadow-camera-near={1} shadow-camera-far={40} shadow-camera-left={-12} shadow-camera-right={12} shadow-camera-top={12} shadow-camera-bottom={-12}/>
+    <directionalLight castShadow color="#ffe6c4" position={position} intensity={4.4} shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004} shadow-normalBias={0.03} shadow-camera-near={0.5} shadow-camera-far={50} shadow-camera-left={-12} shadow-camera-right={12} shadow-camera-top={12} shadow-camera-bottom={-12}/>
     <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[400, 400]}/><meshStandardMaterial color="#5f733f" roughness={1}/></mesh>
     <Row tiltDeg={tiltDeg}/>
-    {/* The path the sun moves along. */}
-    <mesh position={[0, lab.pivotHeight, 0]} rotation={[0, -Math.PI / 2, 0]}><torusGeometry args={[lab.sunRadius, 0.025, 8, 96, Math.PI]}/><meshBasicMaterial color="#ffe9b0" transparent opacity={0.45} toneMapped={false}/></mesh>
     <group position={position}>
       {/* A generous invisible grab area around the sun. */}
       <mesh onPointerDown={grab} onPointerOver={() => setHovered(true)} onPointerOut={() => setHovered(false)}><sphereGeometry args={[lab.sunGrabRadius, 16, 16]}/><meshBasicMaterial transparent opacity={0} depthWrite={false}/></mesh>
@@ -100,38 +103,45 @@ function Scene({ sunDeg, tiltDeg, onSun, onGrip, resetSignal }: { sunDeg: number
   </>;
 }
 
+function describeTilt(state: SunLabState, evaluated: EvaluatedRange | null): string {
+  const lean = state.tiltDeg < 0 ? "leaning back" : "leaning forward";
+  if (state.withinEvaluatedRange === null || !evaluated) return lean;
+  return state.withinEvaluatedRange ? "within evaluated range" : `${lean} · outside evaluated ${formatAngle(evaluated.minDeg)}–${formatAngle(evaluated.maxDeg)}`;
+}
+
 /**
- * One row and a sun the viewer can hold and move; the row turns to face it. The view itself orbits, zooms and pans like the 3D farm.
+ * One row and a sun the viewer can hold and move anywhere; the row turns through a full 180 degrees to face it.
+ * The view itself orbits, zooms and pans like the 3D farm.
  * Everything shown is geometry computed here for illustration; no payload value is changed or implied.
  */
 export default function SunLabScene({ rowId, recordedAngle, recommendedAngle, evaluated }: { rowId: string; recordedAngle: number; recommendedAngle: number | null; evaluated: EvaluatedRange | null }) {
-  const [sunDeg, setSunDeg] = useState<number>(sunLab.startSunDeg);
+  const [sun, setSun] = useState<SunPoint>(sunLab.start);
   const [resetSignal, setResetSignal] = useState(0);
   const [grip, setGrip] = useState<SunGrip>("free");
-  const state: SunLabState = getSunLabState(sunDeg, evaluated);
-  // Keyboard equivalent of dragging the sun. A larger sun angle is further right in the opening view.
-  const keySteps: Record<string, number> = { ArrowRight: lab.keyStepDeg, ArrowUp: lab.keyStepDeg, ArrowLeft: -lab.keyStepDeg, ArrowDown: -lab.keyStepDeg, PageUp: lab.pageStepDeg, PageDown: -lab.pageStepDeg };
+  const state: SunLabState = getSunLabState(sun, evaluated);
+  const placement = state.side === "behind" ? "behind the row" : "in front of the row";
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "Home" || event.key === "End") { event.preventDefault(); setSunDeg(event.key === "Home" ? sunLab.minSunDeg : sunLab.maxSunDeg); return; }
+    if (event.key === "Home") { event.preventDefault(); setSun(sunLab.start); return; }
     const step = keySteps[event.key];
-    if (step === undefined) return;
-    event.preventDefault(); setSunDeg(current => clampSunAngle(current + step));
+    if (!step) return;
+    event.preventDefault();
+    setSun(current => clampSunPoint({ side: current.side + (step.side ?? 0), height: current.height + (step.height ?? 0), forward: current.forward + (step.forward ?? 0) }));
   }
   return <div className="lab">
-    <div className="lab-canvas" role="group" aria-label="Single-row sun lab. Hold the sun and move it along its arc. Drag elsewhere to rotate the view, scroll to zoom, right-drag to move.">
-      <div className="lab-stage" data-grip={grip} role="slider" tabIndex={0} onKeyDown={onKeyDown} aria-label="Sun position" aria-valuemin={sunLab.minSunDeg} aria-valuemax={sunLab.maxSunDeg} aria-valuenow={Math.round(state.sunDeg)} aria-valuetext={`Sun ${Math.round(state.elevationDeg)} degrees high, ${state.side === "behind" ? "behind" : "in front of"} the row; panel tilt ${Math.round(state.tiltDeg)} degrees`}>
+    <div className="lab-canvas" role="group" aria-label="Single-row sun lab">
+      <div className="lab-stage" data-grip={grip} role="application" tabIndex={0} onKeyDown={onKeyDown} aria-label={`Sun and panel row. Hold the sun and move it anywhere; drag elsewhere to rotate the view, scroll to zoom, right-drag to move. Arrow keys move the sun, Page Up and Page Down move it along the row, Home puts it back. Sun ${Math.round(state.elevationDeg)} degrees high, ${placement}; panel tilt ${Math.round(state.tiltDeg)} degrees.`}>
       <Canvas shadows dpr={[1, 1.5]} camera={{ fov: 44, near: 0.1, far: 2000, position: lab.camera }} onCreated={({ gl }) => { gl.toneMappingExposure = 0.36; }}>
-        <Scene sunDeg={state.sunDeg} tiltDeg={state.tiltDeg} onSun={setSunDeg} onGrip={setGrip} resetSignal={resetSignal}/>
+        <Scene sun={state.point} tiltDeg={state.tiltDeg} onSun={next => setSun(clampSunPoint(next))} onGrip={setGrip} resetSignal={resetSignal}/>
       </Canvas>
       </div>
-      <button type="button" className="lab-reset" onClick={() => setResetSignal(count => count + 1)}>Reset view</button>
+      <button type="button" className="lab-reset" onClick={() => { setSun(sunLab.start); setResetSignal(count => count + 1); }}>Reset view</button>
       <div className="lab-tag">SUN LAB · {rowId} · geometric illustration, not a model prediction</div>
       <dl className="lab-readout">
-        <div><dt>Sun height</dt><dd>{formatAngle(Math.round(state.elevationDeg))}<small>{state.side === "behind" ? "behind the row" : "in front of the row"}</small></dd></div>
-        <div data-tone="tilt"><dt>Panel tilt</dt><dd>{formatAngle(Math.round(state.tiltDeg))}<small>{state.withinEvaluatedRange === false && evaluated ? `outside evaluated ${formatAngle(evaluated.minDeg)}–${formatAngle(evaluated.maxDeg)}` : state.withinEvaluatedRange ? "within evaluated range" : "faces the sun"}</small></dd></div>
+        <div><dt>Sun height</dt><dd>{formatAngle(Math.round(state.elevationDeg))}<small>{placement}</small></dd></div>
+        <div data-tone="tilt"><dt>Panel tilt</dt><dd>{formatAngle(Math.round(state.tiltDeg))}<small>{describeTilt(state, evaluated)}</small></dd></div>
         <div><dt>Facing the sun</dt><dd>{state.alignmentPct}%<small>{formatAngle(Math.round(state.incidenceDeg))} off square</small></dd></div>
       </dl>
     </div>
-    <p className="lab-note">Hold the sun and move it: the row turns so its face points at the sun, and lies flat once the sun passes behind it. This is geometry only. The recorded angle for {rowId} is {formatAngle(recordedAngle)}{recommendedAngle !== null ? ` and the backend recommends ${formatAngle(recommendedAngle)}` : ""}; the backend weighs predicted energy against movement cost, which this view does not model.</p>
+    <p className="lab-note">Hold the sun and move it anywhere: the row turns through a full 180° so its face points at the sun, leaning back when the sun is behind it. The row turns about one axis, so a sun off to one side is never faced squarely. This is geometry only. The recorded angle for {rowId} is {formatAngle(recordedAngle)}{recommendedAngle !== null ? ` and the backend recommends ${formatAngle(recommendedAngle)}` : ""}; the backend weighs predicted energy against movement cost, which this view does not model.</p>
   </div>;
 }
