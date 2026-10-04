@@ -68,9 +68,9 @@ export function getCameraPreset(layout: FarmSceneLayout, aspect: number, rowId: 
 }
 
 /** Weather values the scenic 3D view reacts to. Both come straight from the payload's current_weather. */
-export type SceneWeather = { cloudCoverPct: number; ghiWm2: number };
+export type SceneWeather = { cloudCoverPct: number; ghiWm2: number; windSpeedKmh?: number };
 export type SceneCloud = { position: Vec3; scale: number };
-export const sceneSky = { maxClouds: 14, cloudHeight: 9, fullSunGhi: 1000 } as const;
+export const sceneSky = { maxClouds: 14, cloudHeight: 9, fullSunGhi: 1000, sunPeriodSeconds: 120, maxWindKmh: 120 } as const;
 const fraction = (value: number) => value - Math.floor(value);
 /**
  * Presentation of the supplied weather. Cloud count follows cloud cover and light strength follows GHI.
@@ -88,6 +88,22 @@ export function getSceneEnvironment(weather: SceneWeather, bounds: FarmSceneLayo
   }));
   // High and slightly in front of the rows, so the tilted panel faces are lit rather than silhouetted.
   const sunPosition: Vec3 = [-(bounds.width / 2 + 14), 22, bounds.depth * 0.1];
-  return { cover, cloudCount, clouds, sunPosition, brightness, sunIntensity: 0.8 + 3 * brightness, skyIntensity: 0.6 + 0.8 * brightness * (1 - 0.5 * cover), shadowExtent: Math.max(bounds.width, bounds.depth) / 2 + 24 };
+  // Clouds drift faster in stronger supplied wind; the payload has no wind direction, so the heading is illustrative.
+  const cloudDrift = 0.25 + 0.03 * Math.min(sceneSky.maxWindKmh, Math.max(0, weather.windSpeedKmh ?? 0));
+  return { cover, cloudCount, clouds, sunPosition, cloudDrift, driftSpan: Math.max(bounds.width, bounds.depth) * 1.1 + 20, depth: bounds.depth, brightness, sunIntensity: 0.8 + 3 * brightness, skyIntensity: 0.6 + 0.8 * brightness * (1 - 0.5 * cover), shadowExtent: Math.max(bounds.width, bounds.depth) / 2 + 24 };
 }
 export type SceneEnvironment = ReturnType<typeof getSceneEnvironment>;
+/**
+ * Where the animated sun is after `seconds`: a slow illustrative arc that starts at `sunPosition`,
+ * rises behind the farm, crosses to the other side and returns. It is not a solar-position calculation.
+ */
+export function getSunArcPosition(environment: Pick<SceneEnvironment, "sunPosition" | "depth">, seconds: number): Vec3 {
+  const swing = Math.cos(seconds * 2 * Math.PI / sceneSky.sunPeriodSeconds), lift = 1 - swing * swing;
+  const [x, y, z] = environment.sunPosition;
+  return [x * swing, y + 6 * lift, z - environment.depth * 0.9 * lift];
+}
+/** A cloud's x position after drifting for `seconds`, wrapped so it re-enters from the far side. */
+export function getCloudDriftX(startX: number, environment: Pick<SceneEnvironment, "cloudDrift" | "driftSpan">, seconds: number): number {
+  const span = environment.driftSpan * 2;
+  return ((startX + environment.driftSpan + seconds * environment.cloudDrift) % span + span) % span - environment.driftSpan;
+}
