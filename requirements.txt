@@ -1,7 +1,2 @@
 # Python 3.11; architecture/contracts phase uses only the standard library.
 # Add approved runtime dependencies within the owning implementation phase.
-
-# Approved for Duy's modeling scope (boosting model, feature matrices).
-numpy==2.4.6
-xgboost==3.2.0
-torch==2.14.1  # LSTM model; the CPU build is enough

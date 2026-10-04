@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "deterministic_csv_and_physics_hashes": true,
+  "exact_columns": [
+    "timestamp",
+    "temperature_c",
+    "cloud_cover_pct",
+    "precipitation_mm",
+    "wind_speed_kmh",
+    "wind_gust_kmh",
+    "ghi_wm2",
+    "dni_wm2",
+    "dhi_wm2",
+    "sun_elevation_deg",
+    "sun_azimuth_deg",
+    "panel_angle_deg",
+    "actual_kwh"
+  ],
+  "duplicate_pairs": 0,
+  "missing_values": 0,
+  "split_rows": {
+    "test": 168,
+    "train": 4704,
+    "validation": 168
+  },
+  "hours_retained": 720,
+  "hours_excluded": 0,
+  "exclusion_reasons": [],
+  "rows": 5040,
+  "actual_kwh": {
+    "min": 0.0,
+    "mean": 1.6006420261846268,
+    "max": 8.610670104866132
+  },
+  "maximum_ac_w": 8610.670104866133,
+  "clipped_rows": 0,
+  "clipping_fraction": 0.0,
+  "nighttime_rows": 2569,
+  "nighttime_max_kwh": 0.0,
+  "positive_daytime_rows": 2455,
+  "wind_diagnostic_hours": 197,
+  "target_excluded_from_features": true
+}
