@@ -43,6 +43,27 @@ export function sharesControlDecision(data: FarmSimulationData, row: FarmRow): b
   return row.row_id === target.row_id || (row.action === data.decision.action && row.current_state === target.current_state && row.angle_deg === target.angle_deg);
 }
 
+/**
+ * Among several runs over the same farm (the main run plus one per zone), the run whose decision is shown for a row.
+ * Falls back to the first run, whose view then reports that no recommendation applies.
+ */
+export function getRunForRow(runs: FarmSimulationData[], rowId: string | null): FarmSimulationData {
+  return runs.find(run => { const row = getRowById(run.farm_status, rowId); return row ? sharesControlDecision(run, row) : false; }) ?? runs[0];
+}
+
+/** The first run's farm with every run's previewed rows drawn at that run's decided target angle. Display only. */
+export function getRunsPreviewFarm(runs: FarmSimulationData[]): FarmStatus {
+  const angles = new Map<string, number>();
+  for (const run of runs) { const angle = getPreviewAngle(run); if (angle !== null) for (const id of getPreviewRowIds(run)) angles.set(id, angle); }
+  const farm = runs[0].farm_status;
+  return angles.size === 0 ? farm : { ...farm, rows: farm.rows.map(row => angles.has(row.row_id) ? { ...row, angle_deg: angles.get(row.row_id)! } : row) };
+}
+
+/** How many distinct rows the runs' previews move. */
+export function getRunsPreviewRowCount(runs: FarmSimulationData[]): number {
+  return new Set(runs.flatMap(getPreviewRowIds)).size;
+}
+
 /** The rows a preview moves: every row the control row's decision is shown for. Empty when there is nothing to preview. */
 export function getPreviewRowIds(data: FarmSimulationData): string[] {
   if (getPreviewAngle(data) === null) return [];

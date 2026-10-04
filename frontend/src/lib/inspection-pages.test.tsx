@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { FrontendData } from "../types/solar";
 import { frontendDataSchema } from "../schemas/frontend-data";
 const { load } = vi.hoisted(() => ({load:vi.fn()}));
-vi.mock("./frontend-data.server", () => ({loadFrontendDataResult:load}));
+vi.mock("./frontend-data.server", () => ({loadFrontendDataResult:load, loadZoneRuns:async () => ({runs:[], error:null})}));
 import Weather from "../app/(solar)/weather/page";
 import Analytics from "../app/(solar)/analytics/page";
 import Simulation from "../app/(solar)/simulation/page";

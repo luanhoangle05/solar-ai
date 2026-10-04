@@ -49,6 +49,51 @@ export function resolveFrontendDataPath(
     : path.resolve(process.cwd(), "..", configured);
 }
 
+/** Optional comma-separated list of further generated runs, one per zone, shown beside the main run in the simulation. */
+export const ZONE_RUNS_PATH_VARIABLE = "SOLAR_FRONTEND_ZONE_DATA";
+
+function resolveRepositoryPath(configured: string): string {
+  return path.isAbsolute(configured)
+    ? configured
+    : path.resolve(process.cwd(), "..", configured);
+}
+
+export function resolveZoneRunPaths(
+  environment: Record<string, string | undefined> = process.env,
+): string[] {
+  return (environment[ZONE_RUNS_PATH_VARIABLE] ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+    .map(resolveRepositoryPath);
+}
+
+export type ZoneRunsLoadResult = {
+  runs: FrontendData[];
+  /** Why the configured zone runs could not be shown; null when they loaded or none are configured. */
+  error: string | null;
+};
+
+/** Every configured zone run, each validated like the main payload. If any fails, none are used and the reason is returned. */
+export async function loadZoneRuns(
+  filePaths = resolveZoneRunPaths(),
+): Promise<ZoneRunsLoadResult> {
+  try {
+    return {
+      runs: await Promise.all(filePaths.map((filePath) => loadFrontendData(filePath))),
+      error: null,
+    };
+  } catch (error) {
+    const reason =
+      error instanceof FrontendDataLoadError
+        ? [error.message, error.details].filter(Boolean).join(" ")
+        : error instanceof Error
+          ? error.message
+          : String(error);
+    return { runs: [], error: reason };
+  }
+}
+
 export function resolveMockFrontendDataPath(): string {
   // npm commands are run from /frontend. Keeping the fixture in /data avoids
   // duplicating the shared contract inside the web app.

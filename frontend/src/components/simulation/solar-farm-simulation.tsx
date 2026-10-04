@@ -7,7 +7,7 @@ import { FarmMap } from "@/components/farm/farm-map";
 import { Farm3DLoader } from "@/components/farm-3d/farm-3d-loader";
 import { rowStatePresentation } from "@/config/row-states";
 import { getInitialSelection, getRowById, getZoneSelection } from "@/lib/farm";
-import { getCandidateAngleRange, getPreviewAngle, getPreviewFarm, getPreviewRowIds, getRowSimulationView, getSimulationConditions, type FarmSimulationData, type RowSimulationView } from "@/lib/farm-simulation";
+import { getCandidateAngleRange, getPreviewAngle, getRowSimulationView, getRunForRow, getRunsPreviewFarm, getRunsPreviewRowCount, getSimulationConditions, type FarmSimulationData, type RowSimulationView } from "@/lib/farm-simulation";
 import { formatAngle } from "@/lib/formatters";
 import "@/app/(solar)/farm/farm.css";
 import "./solar-farm-simulation.css";
@@ -19,19 +19,24 @@ const weatherIcons = { ghi: Sun, clouds: Cloud, temperature: Thermometer, wind: 
 
 /**
  * Farm view for the recorded run. Selecting a row only changes what is inspected.
- * "Preview" redraws the control-target row at the backend's recommended angle on screen only:
+ * "Preview" redraws rows at the backend's decided angle on screen only:
  * the payload is not changed and no controller command exists in this app.
+ * `zoneRuns` are further complete runs over the same farm, one per zone; each row shows the run that decided for it.
  */
-export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
+export function SolarFarmSimulation({ data, zoneRuns, zoneRunsError = null }: { data: FarmSimulationData; zoneRuns?: FarmSimulationData[]; zoneRunsError?: string | null }) {
+  const runs = useMemo(() => [data, ...(zoneRuns ?? [])], [data, zoneRuns]);
   const targetId = data.metadata.control_target_id;
   const [selection, setSelection] = useState(() => getInitialSelection(data.farm_status, getRowById(data.farm_status, data.metadata.control_target_id)));
   const [view, setView] = useState<"2d" | "3d" | "lab">("3d");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const conditions = getSimulationConditions(data);
-  const previewAngle = getPreviewAngle(data);
+  const run = getRunForRow(runs, selection.rowId);
+  const previewAngle = getPreviewAngle(run);
+  const previewRows = useMemo(() => getRunsPreviewRowCount(runs), [runs]);
   // Memoized so the 3D scene rebuilds only when the preview is toggled, not on every row selection.
-  const farm = useMemo(() => isPreviewing ? getPreviewFarm(data) : data.farm_status, [isPreviewing, data]);
-  const rowView = getRowSimulationView(data, selection.rowId);
+  const farm = useMemo(() => isPreviewing ? getRunsPreviewFarm(runs) : data.farm_status, [isPreviewing, runs, data]);
+  const rowView = getRowSimulationView(run, selection.rowId);
+  const previewSummary = runs.length > 1 ? `${runs.length} zone runs, ${previewRows} rows drawn at their decided angle` : `${data.decision.action} · ${targetId} drawn at ${formatAngle(previewAngle)}`;
   function inspectRow(id: string) {
     const row = getRowById(data.farm_status, id);
     if (row) setSelection({ rowId: row.row_id, zoneId: row.zone_id });
@@ -55,7 +60,7 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
       <div className="sfs-scene" data-preview={isPreviewing}>
         <div className="sfs-scene-bar">
           <span><MousePointerClick size={14} aria-hidden="true"/>{view === "lab" ? "Hold the sun and move it anywhere · Drag elsewhere to rotate · Scroll to zoom · Right-drag to move" : "Drag to rotate · Scroll to zoom · Click a row to zoom in on it · Overview to zoom back out"}</span>
-          {isPreviewing && <span className="sfs-preview-tag"><Eye size={13} aria-hidden="true"/>PREVIEW · {data.decision.action} · {targetId} drawn at {formatAngle(previewAngle)}</span>}
+          {isPreviewing && <span className="sfs-preview-tag"><Eye size={13} aria-hidden="true"/>PREVIEW · {previewSummary}</span>}
           <div role="group" aria-label="Farm view"><button type="button" aria-pressed={view === "2d"} onClick={() => setView("2d")}>2D</button><button type="button" aria-pressed={view === "3d"} onClick={() => setView("3d")}>3D</button><button type="button" aria-pressed={view === "lab"} onClick={() => setView("lab")}>Sun lab</button></div>
         </div>
         {view === "3d" ? <Farm3DLoader {...sceneProps} weather={sceneWeather} trackingRange={trackingRange} onExit={() => setView("2d")}/>
@@ -63,17 +68,21 @@ export function SolarFarmSimulation({ data }: { data: FarmSimulationData }) {
           : <FarmMap {...sceneProps}/>}
       </div>
       {rowView
-        ? <RowPanel view={rowView} action={data.decision.action} previewAngle={previewAngle} previewRows={getPreviewRowIds(data).length} isPreviewing={isPreviewing} onPreview={setIsPreviewing}/>
+        ? <RowPanel view={rowView} action={run.decision.action} previewAngle={previewAngle} previewRows={previewRows} runCount={runs.length} zoneRunsError={zoneRunsError} isPreviewing={isPreviewing} onPreview={setIsPreviewing}/>
         : <aside className="sfs-row"><p className="sfs-empty">No row available for inspection.</p></aside>}
     </div>
-    <p className="sr-only" role="status">Inspecting {selection.rowId ?? "no row"}.{isPreviewing ? ` Previewing ${targetId} at ${formatAngle(previewAngle)}; no command is sent.` : ""}</p>
+    <p className="sr-only" role="status">Inspecting {selection.rowId ?? "no row"}.{isPreviewing ? ` Previewing ${previewSummary}; no command is sent.` : ""}</p>
   </section>;
 }
 
-function RowPanel({ view, action, previewAngle, previewRows, isPreviewing, onPreview }: { view: RowSimulationView; action: string; previewAngle: number | null; previewRows: number; isPreviewing: boolean; onPreview: (value: boolean) => void }) {
+function RowPanel({ view, action, previewAngle, previewRows, runCount, zoneRunsError, isPreviewing, onPreview }: { view: RowSimulationView; action: string; previewAngle: number | null; previewRows: number; runCount: number; zoneRunsError: string | null; isPreviewing: boolean; onPreview: (value: boolean) => void }) {
   const { row } = view;
+  // This row moves in a preview only when its own run decided to move it.
   const canPreview = view.appliesDecision && previewAngle !== null;
+  // With several zone runs the toggle previews all of them at once, so it is offered from any row a run covers.
+  const canToggle = view.appliesDecision && (canPreview || (runCount > 1 && previewRows > 0));
   const shownAngle = isPreviewing && canPreview ? previewAngle : view.currentAngle;
+  const previewLabel = runCount > 1 ? `Preview all zone decisions (${previewRows} rows move)` : `Preview ${action} to ${formatAngle(previewAngle)} on ${previewRows > 1 ? `${previewRows} rows` : row.row_id}`;
   return <aside className="sfs-row" aria-label="Selected row">
     <div className="sfs-row-head"><span className="sfs-dot" data-target={view.isTarget} aria-hidden="true"/><div><h3>Selected Row: {row.row_id}</h3><p>{view.zoneName} <i/> {view.position}</p></div>
       <div className="sfs-row-badges"><Badge variant={rowStatePresentation[row.current_state].variant}>{row.current_state}</Badge>{view.isTarget && <span className="sfs-target"><Crosshair size={11} aria-hidden="true"/>CONTROL TARGET</span>}</div></div>
@@ -89,12 +98,13 @@ function RowPanel({ view, action, previewAngle, previewRows, isPreviewing, onPre
       {view.reasoning.length
         ? <ul>{view.reasoning.map((line, index) => <li key={index}>{line}</li>)}</ul>
         : <p>No recommendation is shown for this row: it is not the control target and does not share its state, angle and action. It shows its recorded state ({row.current_state}) and recorded action ({row.action}).</p>}
-      {canPreview && <button type="button" className="sfs-apply" aria-pressed={isPreviewing} onClick={() => onPreview(!isPreviewing)}>
-        {isPreviewing ? <><RotateCcw size={15} aria-hidden="true"/>Show recorded {formatAngle(view.currentAngle)}</> : <><Play size={15} aria-hidden="true"/>Preview {action} to {formatAngle(previewAngle)} on {previewRows > 1 ? `${previewRows} rows` : row.row_id}</>}
+      {view.appliesDecision && !canPreview && <p>The manager decision for this row is HOLD, so it does not move in a preview.</p>}
+      {canToggle && <button type="button" className="sfs-apply" aria-pressed={isPreviewing} onClick={() => onPreview(!isPreviewing)}>
+        {isPreviewing ? <><RotateCcw size={15} aria-hidden="true"/>Show recorded angles</> : <><Play size={15} aria-hidden="true"/>{previewLabel}</>}
       </button>}
-      {view.appliesDecision && !canPreview && <p>The manager decision is HOLD, so there is no movement to preview.</p>}
     </div>
-    <p className="sfs-note">{previewRows > 1 ? `The decision is computed for the control row; the payload shows the same action on ${previewRows} rows in the same state and at the same angle. ` : ""}Preview redraws the row on screen only. The payload records a proposed action; no controller command is sent or confirmed.</p>
+    {zoneRunsError && <p className="sfs-note" role="alert">Zone runs could not be loaded, so only the main run is shown: {zoneRunsError}</p>}
+    <p className="sfs-note">{runCount > 1 ? `${runCount} separate agent runs are loaded, one per zone, each computed from that zone's starting angle. ` : previewRows > 1 ? `The decision is computed for the control row; the payload shows the same action on ${previewRows} rows in the same state and at the same angle. ` : ""}Preview redraws rows on screen only. The payload records a proposed action; no controller command is sent or confirmed.</p>
   </aside>;
 }
 

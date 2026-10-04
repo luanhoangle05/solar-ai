@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadFrontendData } from "./frontend-data.server";
-import { getCandidateAngleRange, getPreviewAngle, getPreviewFarm, getPreviewRowIds, getRowSimulationView, getSimulationConditions } from "./farm-simulation";
+import { getCandidateAngleRange, getPreviewAngle, getPreviewFarm, getPreviewRowIds, getRowSimulationView, getRunForRow, getRunsPreviewFarm, getRunsPreviewRowCount, getSimulationConditions } from "./farm-simulation";
 import type { FrontendData } from "../types/solar";
 let data: FrontendData;
 beforeAll(async () => { data = await loadFrontendData(); });
@@ -56,6 +56,38 @@ describe("solar farm simulation view", () => {
     expect(getRowSimulationView(marked, stowed.row_id)).toMatchObject({ appliesDecision: false, recommendedAngle: null, reasoning: [] });
   });
   it("marks the control target as carrying the decision", () => expect(getRowSimulationView(data, "row-001")).toMatchObject({ isTarget: true, appliesDecision: true }));
+  describe("several runs over one farm", () => {
+    // Two runs sharing one farm: zone 1 starts at 35 and rotates to 45; zone 2 starts at 50 and holds.
+    const zoneTwo = () => data.farm_status.zones[1];
+    const farm = () => ({ ...data.farm_status, rows: data.farm_status.rows.map(row => row.current_state !== "READY" ? row
+      : row.zone_id === zoneTwo().zone_id ? { ...row, angle_deg: 50, action: "HOLD" as const }
+      : row.zone_id === "zone-01" ? { ...row, action: "ROTATE" as const } : row) });
+    const first = () => ({ ...data, farm_status: farm() });
+    const second = () => ({ ...data, farm_status: farm(), metadata: { ...data.metadata, control_target_id: zoneTwo().row_ids[0] },
+      decision: { action: "HOLD" as const, target_angle_deg: 50, reason: "Zone two holds" },
+      optimization: { ...data.optimization!, current_angle_deg: 50, recommended_angle_deg: 50 } });
+    it("finds the run that decided for a row", () => {
+      expect(getRunForRow([first(), second()], "row-002").metadata.control_target_id).toBe("row-001");
+      expect(getRunForRow([first(), second()], zoneTwo().row_ids[1]).decision.reason).toBe("Zone two holds");
+    });
+    it("falls back to the first run for a row no run covers", () => {
+      const stowed = data.farm_status.rows.find(row => row.current_state === "STOWED")!;
+      expect(getRunForRow([first(), second()], stowed.row_id).metadata.control_target_id).toBe("row-001");
+      expect(getRunForRow([first(), second()], null).metadata.control_target_id).toBe("row-001");
+    });
+    it("shows each zone its own run's recommendation", () => {
+      const row = zoneTwo().row_ids[1];
+      expect(getRowSimulationView(getRunForRow([first(), second()], row), row)).toMatchObject({ appliesDecision: true, currentAngle: 50, recommendedAngle: 50 });
+      expect(getRowSimulationView(getRunForRow([first(), second()], "row-002"), "row-002")).toMatchObject({ appliesDecision: true, currentAngle: 35, recommendedAngle: 45 });
+    });
+    it("previews every run's rows at that run's target and leaves holding zones alone", () => {
+      const preview = getRunsPreviewFarm([first(), second()]);
+      expect(preview.rows.filter(row => row.zone_id === "zone-01" && row.current_state === "READY").every(row => row.angle_deg === 45)).toBe(true);
+      expect(preview.rows.filter(row => row.zone_id === zoneTwo().zone_id && row.current_state === "READY").every(row => row.angle_deg === 50)).toBe(true);
+    });
+    it("counts the rows the previews move", () => expect(getRunsPreviewRowCount([first(), second()])).toBe(data.farm_status.rows.filter(row => row.zone_id === "zone-01" && row.current_state === "READY").length));
+    it("returns the farm unchanged when no run moves anything", () => { const run = second(); expect(getRunsPreviewFarm([run])).toBe(run.farm_status); });
+  });
   it("says so when the target has no optimization result", () => expect(getRowSimulationView({ ...data, optimization: null }, "row-001")).toMatchObject({ recommendedAngle: null, gain: null, reasoning: expect.arrayContaining(["No optimization result was supplied for this run."]) }));
   it("takes the tracking range from the evaluated candidate angles", () => expect(getCandidateAngleRange(data)).toEqual({ minDeg: 30, maxDeg: 60 }));
   it("offers no tracking range without candidates", () => expect(getCandidateAngleRange({ candidate_predictions: [] })).toBeNull());
