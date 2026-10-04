@@ -6,6 +6,7 @@ by rule, and predict energy for every candidate angle including the stay angle.
 
 import math
 
+from src.agents.reasoning import Reasoner
 from src.agents.trace import Clock, TraceRecorder, utc_now_iso
 from src.common.agent_contracts import ModelingAgentUpdate
 from src.common.config import SimulationConfig
@@ -19,8 +20,8 @@ AGENT_NAME = "modeling"
 
 
 class ModelingAgent:
-    def __init__(self, tools: ModelingTools, config: SimulationConfig, *, clock: Clock = utc_now_iso) -> None:
-        self.tools, self.config, self._clock = tools, config, clock
+    def __init__(self, tools: ModelingTools, config: SimulationConfig, *, clock: Clock = utc_now_iso, reasoner: Reasoner | None = None) -> None:
+        self.tools, self.config, self._clock, self._reasoner = tools, config, clock, reasoner
 
     def run(self, state: AgentState) -> ModelingAgentUpdate:
         """Return only the `modeling` section; raise StageError rather than invent output."""
@@ -56,6 +57,7 @@ class ModelingAgent:
             "model_comparison": comparison,
             "candidate_predictions": predictions,
         }
+        recorder.reason(self._reasoner)
         return {"modeling": modeling, **recorder.trace()}
 
 
@@ -80,9 +82,10 @@ def _require_valid_predictions(predictions: list[CandidatePrediction], angles: t
 
 
 def _describe_comparison(comparison: list[ModelMetrics]) -> str:
+    # R2 keeps six significant digits: four would print a near-perfect fit as exactly 1.
     parts = [
         f"{entry['model']}: UNAVAILABLE" if entry["status"] == "UNAVAILABLE"
-        else f"{entry['model']} ({entry['implementation']}): RMSE {entry['rmse']:.4g}, MAE {entry['mae']:.4g}, R2 {entry['r2']:.4g}"
+        else f"{entry['model']} ({entry['implementation']}): RMSE {entry['rmse']:.4g}, MAE {entry['mae']:.4g}, R2 {entry['r2']:.6g}"
         for entry in comparison
     ]
     return "Validation-window metrics in kWh. " + "; ".join(parts)

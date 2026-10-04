@@ -1,6 +1,7 @@
 """Manager / Safety Agent and its deterministic safety tools. Owner: Duy.
 
-Decision priority, applied by rule and never by an LLM:
+Decision priority, applied by rule and never by an LLM (an optional LLM only
+words an explanation after the decision is final):
 1. a failed SEVERE check                      -> STOW at the configured stow angle
 2. any other failed check, or no optimization -> HOLD at the current angle
 3. net benefit <= configured threshold        -> HOLD at the current angle
@@ -13,6 +14,7 @@ no hardware command exists in this codebase.
 import math
 from typing import Callable, TypedDict
 
+from src.agents.reasoning import Reasoner
 from src.agents.trace import Clock, TraceRecorder, utc_now_iso
 from src.common.agent_contracts import ManagerAgentUpdate
 from src.common.config import SimulationConfig
@@ -133,8 +135,8 @@ def _reasons(checks: list[SafetyCheck]) -> str:
 
 
 class ManagerAgent:
-    def __init__(self, tools: SafetyTools, config: SimulationConfig, *, row_status: RowStatusLookup | None = None, clock: Clock = utc_now_iso) -> None:
-        self.tools, self.config, self._row_status, self._clock = tools, config, row_status, clock
+    def __init__(self, tools: SafetyTools, config: SimulationConfig, *, row_status: RowStatusLookup | None = None, clock: Clock = utc_now_iso, reasoner: Reasoner | None = None) -> None:
+        self.tools, self.config, self._row_status, self._clock, self._reasoner = tools, config, row_status, clock, reasoner
 
     def run(self, state: AgentState) -> ManagerAgentUpdate:
         """Run every available check, then let the rule tool decide. Returns `safety` and `decision` only."""
@@ -161,6 +163,7 @@ class ManagerAgent:
             recorder.log("dispatch", f"{receipt['mode']}: {receipt['reason']}")
         except ToolError as exc:
             raise recorder.fail("SAFETY_FAILED", f"Safety evaluation failed; no command issued: {exc}") from exc
+        recorder.reason(self._reasoner)
         return {"safety": safety, "decision": decision, **recorder.trace()}
 
     def _observe_row(self, target_id: str) -> RowStatus | None:

@@ -2,13 +2,15 @@
 
 Agents coordinate tools and explain what the tools returned. Every tool call
 and every reasoning step is recorded here so the run can be audited and shown
-in the frontend activity log. Explanations are templated from tool results;
-no LLM is involved and nothing is calculated in this module.
+in the frontend activity log. Explanations are templated from tool results.
+An optional LLM may add a worded explanation of those same results (see
+`reasoning.py`); it never calculates, and nothing is calculated in this module.
 """
 
 from datetime import datetime, timezone
 from typing import Callable, TypeVar
 
+from src.agents.reasoning import LLM_TOOL, Reasoner, require_grounded
 from src.common.agent_contracts import StageTrace
 from src.common.schema import AgentLogEntry, AgentName, ToolCall
 from src.common.tool_contracts import ToolError
@@ -59,6 +61,28 @@ class TraceRecorder:
             raise ToolError(f"{tool} failed unexpectedly: {exc!r}") from exc
         self._record(tool, "OK", detail)
         return result
+
+    def reason(self, reasoner: Reasoner | None) -> None:
+        """Ask the LLM to explain what has been recorded so far. Never fails the stage and never alters a result."""
+        if reasoner is None:
+            return
+        facts = self._facts()
+        try:
+            text = self.call(
+                LLM_TOOL,
+                lambda: require_grounded(reasoner.explain(self._agent, facts), facts),
+                lambda explanation: f"{len(explanation)} characters; every number checked against the tool results",
+            )
+        except ToolError:
+            self.log("llm_reasoning_unavailable", "No LLM explanation for this stage; the recorded tool results above stand as they are.")
+            return
+        self.log("llm_reasoning", text)
+
+    def _facts(self) -> str:
+        """Everything this agent has recorded, as the only material the LLM is shown."""
+        calls = [f"{call['tool']} [{call['status']}]: {call['detail']}" for call in self._tool_calls]
+        notes = [f"{entry['action']}: {entry['result']}" for entry in self._agent_log]
+        return "\n".join([*calls, *notes])
 
     def fail(self, code: str, message: str) -> StageError:
         """Log the failure and build the error for the caller to raise."""

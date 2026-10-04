@@ -1,0 +1,208 @@
+{
+  "dataset": {
+    "dataset_kind": "LIVE",
+    "label_source": "physics-derived"
+  },
+  "windows": {
+    "fit_rows": 52003,
+    "early_stopping_rows": 9170,
+    "validation_rows": 61376
+  },
+  "selection_rule": "lowest validation RMSE; ties keep the earlier candidate, and the current default is listed first",
+  "note": "The test window is not read during tuning. Decision quality is informational and does not pick the winner.",
+  "selected": {
+    "num_boost_round": 3000,
+    "early_stopping_rounds": 40,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.9,
+    "min_child_weight": 2.0,
+    "seed": 20261004,
+    "use_geometry_features": true
+  },
+  "candidates": [
+    {
+      "config": {
+        "num_boost_round": 600,
+        "early_stopping_rounds": 40,
+        "max_depth": 6,
+        "learning_rate": 0.05,
+        "subsample": 0.8,
+        "colsample_bytree": 0.9,
+        "min_child_weight": 2.0,
+        "seed": 20261004,
+        "use_geometry_features": true
+      },
+      "validation": {
+        "mae": 0.019527202454186064,
+        "rmse": 0.04030459516726625,
+        "r2": 0.9997158048931987
+      },
+      "validation_decision_quality": {
+        "hours": 4366,
+        "best_angle_match_rate": 0.7366010077874484,
+        "mean_regret_kwh": 0.00597283549218027,
+        "max_regret_kwh": 0.18753947688579764,
+        "total_regret_kwh": 26.07739975885906,
+        "mean_curve_error_kwh": 0.02158518337493153
+      }
+    },
+    {
+      "config": {
+        "num_boost_round": 3000,
+        "early_stopping_rounds": 40,
+        "max_depth": 6,
+        "learning_rate": 0.05,
+        "subsample": 0.8,
+        "colsample_bytree": 0.9,
+        "min_child_weight": 2.0,
+        "seed": 20261004,
+        "use_geometry_features": true
+      },
+      "validation": {
+        "mae": 0.01678205741792269,
+        "rmse": 0.03582577278866594,
+        "r2": 0.9997754574740196
+      },
+      "validation_decision_quality": {
+        "hours": 4366,
+        "best_angle_match_rate": 0.771873568483738,
+        "mean_regret_kwh": 0.004292730317573245,
+        "max_regret_kwh": 0.18753947688579764,
+        "total_regret_kwh": 18.74206056652479,
+        "mean_curve_error_kwh": 0.017301080295662897
+      }
+    },
+    {
+      "config": {
+        "num_boost_round": 3000,
+        "early_stopping_rounds": 40,
+        "max_depth": 6,
+        "learning_rate": 0.1,
+        "subsample": 0.8,
+        "colsample_bytree": 0.9,
+        "min_child_weight": 2.0,
+        "seed": 20261004,
+        "use_geometry_features": true
+      },
+      "validation": {
+        "mae": 0.018931062716565205,
+        "rmse": 0.03993040695312095,
+        "r2": 0.9997210573373372
+      },
+      "validation_decision_quality": {
+        "hours": 4366,
+        "best_angle_match_rate": 0.74942739349519,
+        "mean_regret_kwh": 0.005087153677900365,
+        "max_regret_kwh": 0.16949430390155085,
+        "total_regret_kwh": 22.210512957712993,
+        "mean_curve_error_kwh": 0.0197816560829816
+      }
+    },
+    {
+      "config": {
+        "num_boost_round": 3000,
+        "early_stopping_rounds": 40,
+        "max_depth": 8,
+        "learning_rate": 0.05,
+        "subsample": 0.8,
+        "colsample_bytree": 0.9,
+        "min_child_weight": 2.0,
+        "seed": 20261004,
+        "use_geometry_features": true
+      },
+      "validation": {
+        "mae": 0.018031233678617975,
+        "rmse": 0.040620061632948845,
+        "r2": 0.9997113386585557
+      },
+      "validation_decision_quality": {
+        "hours": 4366,
+        "best_angle_match_rate": 0.7762253779202932,
+        "mean_regret_kwh": 0.004093559029786445,
+        "max_regret_kwh": 0.21392005968225902,
+        "total_regret_kwh": 17.872478724047618,
+        "mean_curve_error_kwh": 0.017765814792756164
+      }
+    },
+    {
+      "config": {
+        "num_boost_round": 3000,
+        "early_stopping_rounds": 40,
+        "max_depth": 8,
+        "learning_rate": 0.1,
+        "subsample": 0.8,
+        "colsample_bytree": 0.9,
+        "min_child_weight": 2.0,
+        "seed": 20261004,
+        "use_geometry_features": true
+      },
+      "validation": {
+        "mae": 0.01979127077670382,
+        "rmse": 0.04341776339854065,
+        "r2": 0.9996702062926678
+      },
+      "validation_decision_quality": {
+        "hours": 4366,
+        "best_angle_match_rate": 0.7349977095739808,
+        "mean_regret_kwh": 0.005685552482471257,
+        "max_regret_kwh": 0.1934830361863722,
+        "total_regret_kwh": 24.82312213846951,
+        "mean_curve_error_kwh": 0.02055995151474414
+      }
+    },
+    {
+      "config": {
+        "num_boost_round": 3000,
+        "early_stopping_rounds": 40,
+        "max_depth": 10,
+        "learning_rate": 0.05,
+        "subsample": 0.8,
+        "colsample_bytree": 0.9,
+        "min_child_weight": 2.0,
+        "seed": 20261004,
+        "use_geometry_features": true
+      },
+      "validation": {
+        "mae": 0.019282223646462805,
+        "rmse": 0.04403388858935031,
+        "r2": 0.999660779923309
+      },
+      "validation_decision_quality": {
+        "hours": 4366,
+        "best_angle_match_rate": 0.7654603756298671,
+        "mean_regret_kwh": 0.004456277771784431,
+        "max_regret_kwh": 0.517568648867079,
+        "total_regret_kwh": 19.456108751610827,
+        "mean_curve_error_kwh": 0.01831774787851103
+      }
+    },
+    {
+      "config": {
+        "num_boost_round": 3000,
+        "early_stopping_rounds": 40,
+        "max_depth": 10,
+        "learning_rate": 0.1,
+        "subsample": 0.8,
+        "colsample_bytree": 0.9,
+        "min_child_weight": 2.0,
+        "seed": 20261004,
+        "use_geometry_features": true
+      },
+      "validation": {
+        "mae": 0.021125383535334566,
+        "rmse": 0.048067530401403484,
+        "r2": 0.9995957862443291
+      },
+      "validation_decision_quality": {
+        "hours": 4366,
+        "best_angle_match_rate": 0.733623453962437,
+        "mean_regret_kwh": 0.005919992749107835,
+        "max_regret_kwh": 0.33116910281688305,
+        "total_regret_kwh": 25.846688342604807,
+        "mean_curve_error_kwh": 0.021237860739937935
+      }
+    }
+  ]
+}

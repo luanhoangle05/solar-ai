@@ -5,6 +5,7 @@ predictions and explains the result. Costs, net benefit and the choice come
 from the tools; the agent only forms the gain argument they require.
 """
 
+from src.agents.reasoning import Reasoner
 from src.agents.trace import Clock, TraceRecorder, utc_now_iso
 from src.common.agent_contracts import OptimizationAgentUpdate
 from src.common.config import SimulationConfig
@@ -16,8 +17,8 @@ AGENT_NAME = "optimization"
 
 
 class OptimizationAgent:
-    def __init__(self, tools: OptimizationTools, config: SimulationConfig, *, clock: Clock = utc_now_iso) -> None:
-        self.tools, self.config, self._clock = tools, config, clock
+    def __init__(self, tools: OptimizationTools, config: SimulationConfig, *, clock: Clock = utc_now_iso, reasoner: Reasoner | None = None) -> None:
+        self.tools, self.config, self._clock, self._reasoner = tools, config, clock, reasoner
 
     def run(self, state: AgentState) -> OptimizationAgentUpdate:
         """Compare candidates by net benefit and return only the `optimization` section."""
@@ -39,6 +40,7 @@ class OptimizationAgent:
         except ToolError as exc:
             raise recorder.fail("OPTIMIZATION_FAILED", f"Optimization tool failed: {exc}") from exc
         recorder.log("recommendation", _explain(optimization))
+        recorder.reason(self._reasoner)
         return {"optimization": optimization, **recorder.trace()}
 
     def _compare_candidates(self, recorder: TraceRecorder, predictions: list[CandidatePrediction], current_angle: float) -> None:

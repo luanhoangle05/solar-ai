@@ -33,7 +33,9 @@ from src.models.evaluation import ChronologicalSplit, chronological_split
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_DATASET_PATH = ROOT / "data" / "example" / "example_weather.csv"
+# The seasonal smoke sample is committed; the full 2023-2025 dataset is delivered as an archive and is not.
 PIPELINE_DATASET_PATH = ROOT / "data" / "generated" / "gem_seasonal_sample"
+FULL_DATASET_PATH = ROOT / "data" / "generated" / "gem_2023_2025"
 FULL_SPLIT_FILE_NAMES = {"train": "train.csv", "validation": "validation.csv", "test": "test.csv"}
 SAMPLE_SPLIT_FILE_NAMES = {"train": "train_sample.csv", "validation": "validation_sample.csv", "test": "test_sample.csv"}
 # Priority order: the full dataset wins over the smoke sample when a directory holds both.
@@ -66,16 +68,20 @@ class DatasetSource:
 EXAMPLE_DATASET_SOURCE = DatasetSource(path=EXAMPLE_DATASET_PATH, dataset_kind="MOCK", label_source="mock")
 # Archived forecast-model weather with pvlib-simulated energy labels: real inputs, physics-derived targets.
 PIPELINE_DATASET_SOURCE = DatasetSource(path=PIPELINE_DATASET_PATH, dataset_kind="LIVE", label_source="physics-derived")
+FULL_DATASET_SOURCE = DatasetSource(path=FULL_DATASET_PATH, dataset_kind="LIVE", label_source="physics-derived")
 
 
 def default_dataset_source() -> DatasetSource:
-    """Luan's pipeline dataset unless the environment points elsewhere.
+    """Luan's pipeline data unless the environment points elsewhere.
 
-    The two known datasets carry their own labels. Any other path must state its
+    Without an environment override this is the full 2023-2025 dataset when it
+    has been unpacked on this machine, otherwise the committed seasonal sample.
+    The known datasets carry their own labels. Any other path must state its
     dataset kind and label source in the environment; provenance is never guessed.
     """
-    path = Path(os.environ.get(DATASET_PATH_ENV) or PIPELINE_DATASET_PATH)
-    known = next((source for source in (EXAMPLE_DATASET_SOURCE, PIPELINE_DATASET_SOURCE) if path.resolve() == source.path.resolve()), None)
+    path = Path(os.environ.get(DATASET_PATH_ENV) or _default_pipeline_path())
+    known_sources = (EXAMPLE_DATASET_SOURCE, PIPELINE_DATASET_SOURCE, FULL_DATASET_SOURCE)
+    known = next((source for source in known_sources if path.resolve() == source.path.resolve()), None)
     dataset_kind = os.environ.get(DATASET_KIND_ENV) or (known.dataset_kind if known else None)
     label_source = os.environ.get(LABEL_SOURCE_ENV) or (known.label_source if known else None)
     if dataset_kind is None or label_source is None:
@@ -87,6 +93,10 @@ def default_dataset_source() -> DatasetSource:
     if (dataset_kind == "MOCK") != (label_source == "mock"):
         raise DatasetError(f"Inconsistent label: dataset_kind {dataset_kind!r} cannot use label_source {label_source!r}")
     return DatasetSource(path=path, dataset_kind=dataset_kind, label_source=label_source)
+
+
+def _default_pipeline_path() -> Path:
+    return FULL_DATASET_SOURCE.path if FULL_DATASET_SOURCE.path.is_dir() else PIPELINE_DATASET_SOURCE.path
 
 
 def load_dataset_split(source: DatasetSource) -> ChronologicalSplit:

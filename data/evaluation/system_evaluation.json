@@ -5,7 +5,7 @@
     "label_source": "physics-derived",
     "energy_scope": "row",
     "prediction_horizon_minutes": 60,
-    "interval_start": "2025-01-15T00:00:00Z",
+    "interval_start": "2025-01-01T00:00:00Z",
     "control_target_id": "row-001",
     "config_id": "prototype-row-hour-v1",
     "assumptions": [
@@ -18,22 +18,22 @@
   },
   "windows": {
     "train": {
-      "rows": 4704,
-      "hours": 672,
-      "first": "2023-01-15T00:00:00Z",
-      "last": "2023-10-21T23:00:00Z"
+      "rows": 61173,
+      "hours": 8739,
+      "first": "2023-01-01T00:00:00Z",
+      "last": "2023-12-31T23:00:00Z"
     },
     "validation": {
-      "rows": 168,
-      "hours": 24,
-      "first": "2024-01-15T00:00:00Z",
-      "last": "2024-01-15T23:00:00Z"
+      "rows": 61376,
+      "hours": 8768,
+      "first": "2024-01-01T00:00:00Z",
+      "last": "2024-12-31T23:00:00Z"
     },
     "test": {
-      "rows": 168,
-      "hours": 24,
-      "first": "2025-01-15T00:00:00Z",
-      "last": "2025-01-15T23:00:00Z"
+      "rows": 61201,
+      "hours": 8743,
+      "first": "2025-01-01T00:00:00Z",
+      "last": "2025-12-31T23:00:00Z"
     }
   },
   "validation_metrics": [
@@ -57,17 +57,17 @@
       "model": "boosting",
       "implementation": "xgboost",
       "status": "VALIDATED",
-      "mae": 0.10587366507065206,
-      "rmse": 0.23065626340857687,
-      "r2": 0.990926760839135
+      "mae": 0.01678205741792269,
+      "rmse": 0.03582577278866594,
+      "r2": 0.9997754574740196
     },
     {
       "model": "lstm",
       "implementation": "pytorch",
       "status": "VALIDATED",
-      "mae": 0.11598889232489855,
-      "rmse": 0.14767508500727827,
-      "r2": 0.9962808275758109
+      "mae": 0.0048429121889635345,
+      "rmse": 0.009264698174611532,
+      "r2": 0.9999849834550535
     }
   ],
   "unavailable_reasons": {
@@ -75,7 +75,7 @@
     "random_forest": "adapter not delivered yet"
   },
   "selected_model": "lstm",
-  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.1477 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
+  "selection_reason": "Selected lstm (pytorch): lowest validation RMSE 0.009265 kWh among 2 of 4 available models; ties resolve in the order linear_regression, random_forest, boosting, lstm.",
   "test_metrics": [
     {
       "model": "linear_regression",
@@ -97,133 +97,133 @@
       "model": "boosting",
       "implementation": "xgboost",
       "status": "VALIDATED",
-      "mae": 0.04916621698090541,
-      "rmse": 0.10478743475912208,
-      "r2": 0.997194335370263
+      "mae": 0.015875463272550065,
+      "rmse": 0.032147773973303165,
+      "r2": 0.9998230399088649
     },
     {
       "model": "lstm",
       "implementation": "pytorch",
       "status": "VALIDATED",
-      "mae": 0.02291165722351892,
-      "rmse": 0.03541138472105745,
-      "r2": 0.9996795921417501
+      "mae": 0.005067389811200518,
+      "rmse": 0.010065692646283849,
+      "r2": 0.9999826515431096
     }
   ],
   "detailed_metrics": {
     "boosting": {
       "validation": {
         "all_hours": {
-          "samples": 168,
-          "mae": 0.10587366507065206,
-          "rmse": 0.23065626340857687,
-          "r2": 0.990926760839135,
-          "bias_kwh": -0.10373979546842077,
-          "median_abs_error_kwh": 0.00022944500960875303,
-          "p95_abs_error_kwh": 0.6196523822861995,
-          "max_abs_error_kwh": 1.0338857387553304,
-          "wape_pct": 7.164913129922496,
-          "nrmse_pct": 15.60947275313584,
-          "total_energy_error_pct": -7.020505261163374
+          "samples": 61376,
+          "mae": 0.01678205741792269,
+          "rmse": 0.03582577278866594,
+          "r2": 0.9997754574740196,
+          "bias_kwh": -0.0014913473246356715,
+          "median_abs_error_kwh": 0.0010250108316540718,
+          "p95_abs_error_kwh": 0.07704209788088257,
+          "max_abs_error_kwh": 0.5850262877092209,
+          "wape_pct": 1.0553183333890122,
+          "nrmse_pct": 2.252858150236751,
+          "total_energy_error_pct": -0.09378147946615044
         },
         "daylight_hours": {
-          "samples": 56,
-          "mae": 0.3173464900479455,
-          "rmse": 0.3995082941618639,
-          "r2": 0.9644522489442215,
-          "bias_kwh": -0.311493891569273,
-          "median_abs_error_kwh": 0.2149268432718059,
-          "p95_abs_error_kwh": 0.832100933150274,
-          "max_abs_error_kwh": 1.0338857387553304,
-          "wape_pct": 7.158720826253971,
-          "nrmse_pct": 9.01213164590426,
-          "total_energy_error_pct": -7.026697564831899
+          "samples": 30835,
+          "mae": 0.03323298276314055,
+          "rmse": 0.050542155471195574,
+          "r2": 0.9996003526506245,
+          "bias_kwh": -0.0031395967562128533,
+          "median_abs_error_kwh": 0.021374073681108996,
+          "p95_abs_error_kwh": 0.10267550173079987,
+          "max_abs_error_kwh": 0.5850262877092209,
+          "wape_pct": 1.0499121805046654,
+          "nrmse_pct": 1.5967517883174782,
+          "total_energy_error_pct": -0.0991876323504974
         }
       },
       "test": {
         "all_hours": {
-          "samples": 168,
-          "mae": 0.04916621698090541,
-          "rmse": 0.10478743475912208,
-          "r2": 0.997194335370263,
-          "bias_kwh": -0.02105727783553624,
-          "median_abs_error_kwh": 0.0007107909768819809,
-          "p95_abs_error_kwh": 0.233333151906022,
-          "max_abs_error_kwh": 0.4888289787326059,
-          "wape_pct": 4.062082735428844,
-          "nrmse_pct": 8.6574736834078,
-          "total_energy_error_pct": -1.7397393983775455
+          "samples": 61201,
+          "mae": 0.015875463272550065,
+          "rmse": 0.032147773973303165,
+          "r2": 0.9998230399088649,
+          "bias_kwh": -0.0007927585616251457,
+          "median_abs_error_kwh": 0.0011263967026025057,
+          "p95_abs_error_kwh": 0.07323864716623962,
+          "max_abs_error_kwh": 0.31224409575486156,
+          "wape_pct": 0.9741952130147997,
+          "nrmse_pct": 1.972742903700039,
+          "total_energy_error_pct": -0.04864749976443752
         },
         "daylight_hours": {
-          "samples": 56,
-          "mae": 0.14662676031454663,
-          "rmse": 0.1814950609661467,
-          "r2": 0.9888375272699073,
-          "bias_kwh": -0.06404372413477835,
-          "median_abs_error_kwh": 0.1323206028214896,
-          "p95_abs_error_kwh": 0.40071536925895623,
-          "max_abs_error_kwh": 0.4888289787326059,
-          "wape_pct": 4.038071045523656,
-          "nrmse_pct": 4.998336927179855,
-          "total_energy_error_pct": -1.7637510882827334
+          "samples": 30800,
+          "mae": 0.0313425926885605,
+          "rmse": 0.045312390058523104,
+          "r2": 0.9996789995486508,
+          "bias_kwh": -0.0017779217423926665,
+          "median_abs_error_kwh": 0.020973523247884707,
+          "p95_abs_error_kwh": 0.09730037787144408,
+          "max_abs_error_kwh": 0.31224409575486156,
+          "wape_pct": 0.9679361290699398,
+          "nrmse_pct": 1.3993577323985105,
+          "total_energy_error_pct": -0.05490658370929688
         }
       }
     },
     "lstm": {
       "validation": {
         "all_hours": {
-          "samples": 168,
-          "mae": 0.11598889232489855,
-          "rmse": 0.14767508500727827,
-          "r2": 0.9962808275758109,
-          "bias_kwh": 0.009952857260452742,
-          "median_abs_error_kwh": 0.08322884142398834,
-          "p95_abs_error_kwh": 0.3379304844206974,
-          "max_abs_error_kwh": 0.41713752079592403,
-          "wape_pct": 7.8494528076387216,
-          "nrmse_pct": 9.993789813784064,
-          "total_energy_error_pct": 0.6735514220469694
+          "samples": 61376,
+          "mae": 0.0048429121889635345,
+          "rmse": 0.009264698174611532,
+          "r2": 0.9999849834550535,
+          "bias_kwh": -0.0011298731466910412,
+          "median_abs_error_kwh": 0.00112367246424383,
+          "p95_abs_error_kwh": 0.01785287819802761,
+          "max_abs_error_kwh": 0.18626728653907776,
+          "wape_pct": 0.3045403726570579,
+          "nrmse_pct": 0.5825987597052017,
+          "total_energy_error_pct": -0.07105063559331926
         },
         "daylight_hours": {
-          "samples": 56,
-          "mae": 0.19224485816263717,
-          "rmse": 0.2264061616398306,
-          "r2": 0.9885833939849274,
-          "bias_kwh": -0.12586324703070023,
-          "median_abs_error_kwh": 0.17061554815531133,
-          "p95_abs_error_kwh": 0.3976228450785726,
-          "max_abs_error_kwh": 0.41713752079592403,
-          "wape_pct": 4.33667084095112,
-          "nrmse_pct": 5.107283538186939,
-          "total_energy_error_pct": -2.8392305446406327
+          "samples": 30835,
+          "mae": 0.009001300540495825,
+          "rmse": 0.012575899837681087,
+          "r2": 0.9999752572733243,
+          "bias_kwh": -0.0028873218937878016,
+          "median_abs_error_kwh": 0.007364691845842319,
+          "p95_abs_error_kwh": 0.022813306121480248,
+          "max_abs_error_kwh": 0.18626728653907776,
+          "wape_pct": 0.28437336320986517,
+          "nrmse_pct": 0.3973038025052744,
+          "total_energy_error_pct": -0.09121764504051182
         }
       },
       "test": {
         "all_hours": {
-          "samples": 168,
-          "mae": 0.02291165722351892,
-          "rmse": 0.03541138472105745,
-          "r2": 0.9996795921417501,
-          "bias_kwh": 0.002383007305292496,
-          "median_abs_error_kwh": 0.014882542166216872,
-          "p95_abs_error_kwh": 0.07817252655365081,
-          "max_abs_error_kwh": 0.13115517704997837,
-          "wape_pct": 1.8929470877099381,
-          "nrmse_pct": 2.9256669181788104,
-          "total_energy_error_pct": 0.19688260410575936
+          "samples": 61201,
+          "mae": 0.005067389811200518,
+          "rmse": 0.010065692646283849,
+          "r2": 0.9999826515431096,
+          "bias_kwh": -0.0009675187310200673,
+          "median_abs_error_kwh": 0.0013434857190581795,
+          "p95_abs_error_kwh": 0.01790435756782216,
+          "max_abs_error_kwh": 0.45407575368881226,
+          "wape_pct": 0.3109595488206851,
+          "nrmse_pct": 0.6176795866261912,
+          "total_energy_error_pct": -0.059371629040372714
         },
         "daylight_hours": {
-          "samples": 56,
-          "mae": 0.04251985970071964,
-          "rmse": 0.052817109014598844,
-          "r2": 0.9990546773996039,
-          "bias_kwh": -0.019066090053959626,
-          "median_abs_error_kwh": 0.035155586546425255,
-          "p95_abs_error_kwh": 0.09559252638634153,
-          "max_abs_error_kwh": 0.13115517704997837,
-          "wape_pct": 1.170988255819564,
-          "nrmse_pct": 1.4545723997624125,
-          "total_energy_error_pct": -0.5250762277846145
+          "samples": 30800,
+          "mae": 0.009359600183990175,
+          "rmse": 0.013672383876959055,
+          "r2": 0.9999707746184578,
+          "bias_kwh": -0.0026320374034267627,
+          "median_abs_error_kwh": 0.007892384646893014,
+          "p95_abs_error_kwh": 0.02240627037749121,
+          "max_abs_error_kwh": 0.45407575368881226,
+          "wape_pct": 0.2890474078438423,
+          "nrmse_pct": 0.42223674526620153,
+          "total_energy_error_pct": -0.08128377001721515
         }
       }
     }
@@ -231,33 +231,33 @@
   "detailed_metrics_note": "Errors are predicted minus actual, in kWh per row per hour. bias > 0 means over-prediction. WAPE is total absolute error over total actual energy; nRMSE is RMSE over mean actual energy; total_energy_error is the summed prediction against the summed actual. Daylight hours exclude night rows, whose zero energy is trivially predicted. Model selection uses validation RMSE only.",
   "lstm_without_history": {
     "validation": {
-      "mae": 0.11541781136638589,
-      "rmse": 0.1332108586117669,
-      "r2": 0.9969737060531615
+      "mae": 0.006396970768851547,
+      "rmse": 0.012779846785318865,
+      "r2": 0.9999714268077123
     },
     "test": {
-      "mae": 0.044874787834627415,
-      "rmse": 0.05905778101628885,
-      "r2": 0.9991088073626269
+      "mae": 0.006717877523685015,
+      "rmse": 0.013654940452855726,
+      "r2": 0.9999680733653799
     }
   },
   "decision_quality_source": "dataset energy labels for the same hour and angle (physics-derived)",
   "decision_quality": {
     "boosting": {
-      "hours": 8,
-      "best_angle_match_rate": 0.875,
-      "mean_regret_kwh": 0.002026801758530261,
-      "max_regret_kwh": 0.01621441406824209,
-      "total_regret_kwh": 0.01621441406824209,
-      "mean_curve_error_kwh": 0.037720088358961866
+      "hours": 4365,
+      "best_angle_match_rate": 0.7560137457044673,
+      "mean_regret_kwh": 0.0043575876283247815,
+      "max_regret_kwh": 0.130842424935528,
+      "total_regret_kwh": 19.02086999763767,
+      "mean_curve_error_kwh": 0.016968870284124596
     },
     "lstm": {
-      "hours": 8,
-      "best_angle_match_rate": 1.0,
-      "mean_regret_kwh": 0.0,
-      "max_regret_kwh": 0.0,
-      "total_regret_kwh": 0.0,
-      "mean_curve_error_kwh": 0.0070014569848204046
+      "hours": 4365,
+      "best_angle_match_rate": 0.9644902634593356,
+      "mean_regret_kwh": 7.6807632069203e-05,
+      "max_regret_kwh": 0.02438648176273446,
+      "total_regret_kwh": 0.3352653139820711,
+      "mean_curve_error_kwh": 0.0026934028127033774
     }
   },
   "decision_quality_note": "Each model's best candidate angle is compared with the true best angle according to the stated energy source, on test-window hours where the true energy depends on the angle. Regret is true kWh lost per hour.",
@@ -266,38 +266,23 @@
     "A 'model-predicted' replay grades the selected model's choices with that model's own predictions, so its gain is optimistic.",
     "The baseline row never stows; hours stowed for safety lower optimized energy by design.",
     "Each hour is decided on its own one-hour horizon; a move is not credited for energy gained in later hours.",
-    "error_hours above zero means some decisions were fallbacks after a failed stage."
+    "error_hours above zero means some decisions were fallbacks after a failed stage.",
+    "Replay against dataset energy labels for the same hour and angle (physics-derived) skipped: The dataset has no energy label for 2025-01-08T11:00:00Z at 0 deg"
   ],
   "system_evaluation": [
     {
-      "hours": 24,
-      "energy_source": "dataset energy labels for the same hour and angle (physics-derived)",
-      "baseline_kwh": 26.73706190475303,
-      "optimized_kwh": 32.014078346104576,
-      "energy_gain_kwh": 5.277016441351545,
-      "movement_cost_kwh_equivalent": 0.07500000000000001,
-      "net_benefit_kwh_equivalent": 5.202016441351545,
-      "rotate_count": 1,
-      "hold_count": 23,
-      "stow_count": 0,
-      "unnecessary_moves_avoided": 7,
-      "severe_safety_events": 0,
-      "unsafe_rotations": 0,
-      "error_hours": 0
-    },
-    {
-      "hours": 24,
+      "hours": 8743,
       "energy_source": "model-predicted (lstm)",
-      "baseline_kwh": 26.743561414070427,
-      "optimized_kwh": 31.858839181251824,
-      "energy_gain_kwh": 5.1152777671813965,
-      "movement_cost_kwh_equivalent": 0.07500000000000001,
-      "net_benefit_kwh_equivalent": 5.040277767181396,
-      "rotate_count": 1,
-      "hold_count": 23,
-      "stow_count": 0,
-      "unnecessary_moves_avoided": 7,
-      "severe_safety_events": 0,
+      "baseline_kwh": 14327.22569021888,
+      "optimized_kwh": 14977.485253936244,
+      "energy_gain_kwh": 650.2595637173636,
+      "movement_cost_kwh_equivalent": 8.714999999999986,
+      "net_benefit_kwh_equivalent": 641.5445637173635,
+      "rotate_count": 177,
+      "hold_count": 8542,
+      "stow_count": 24,
+      "unnecessary_moves_avoided": 416,
+      "severe_safety_events": 24,
       "unsafe_rotations": 0,
       "error_hours": 0
     }
