@@ -96,13 +96,6 @@ py -3.11 -m venv .venv
 Useful options: `--angle 60` sets the row's current angle, `--no-llm` turns off
 the LLM explanations, `--output` chooses the file.
 
-To get a separately computed decision for each of the four zones, give every zone its own
-starting angle. This writes one file per zone (`<output>`, then `<output>.zone-02.json` and so on):
-
-```powershell
-.\.venv\Scripts\python.exe -m scripts.run_recommendation --zone-angles 60,45,35,30
-```
-
 For LLM explanations, put an Anthropic API key in a `.env` file at the
 repository root (the file is git-ignored):
 
@@ -126,12 +119,6 @@ repository root:
 SOLAR_FRONTEND_DATA=data/evaluation/latest_recommendation.json
 ```
 
-To show per-zone runs in the Simulation's farm panel, also list the other zone files:
-
-```text
-SOLAR_FRONTEND_ZONE_DATA=data/evaluation/demo_recommendation.zone-02.json,data/evaluation/demo_recommendation.zone-03.json,data/evaluation/demo_recommendation.zone-04.json
-```
-
 The full dataset is not committed; see [docs/full-dataset.md](docs/full-dataset.md).
 Without it, the committed seasonal sample is used.
 
@@ -145,7 +132,7 @@ Without it, the committed seasonal sample is used.
 | Movement cost and safety limits | Prototype assumptions in `src/common/config.py` |
 | Live weather run | Real fetch. The provider gives no forecast issue time, so freshness cannot be established and the Manager always holds |
 | Recorded-hour run | A past dataset hour replayed as the forecast, reported as DEGRADED |
-| Farm snapshot in a generated run | Simulated: every row shown READY at an assumed angle. A decision is computed for one control row per run and shown on rows in the same state and at the same angle |
+| Farm snapshot in a generated run | Simulated: every row shown READY at the control row's angle |
 | Control commands | Simulation only; nothing is sent to hardware |
 | Row-to-row shading | Not modeled; rows are optimized independently |
 | 3D sun, clouds, sun-tracking demo and Sun lab in the dashboard | Illustrative only; they do not come from the model |
