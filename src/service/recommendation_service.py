@@ -1,8 +1,13 @@
 """Recommendation service. Owner: Duy.
 
-Composes Duy's tools and agents, runs an injected orchestrator, and hands Tung a
-payload only after it passes `validate_frontend_data`. The orchestrator itself
-(stage lifecycle, farm snapshot, history) is shared team code and is injected.
+Composes Duy's tools and agents, runs an orchestrator, and hands Tung a payload
+only after it passes `validate_frontend_data`. The stage lifecycle lives in the
+shared `src/agents/orchestrator.py`.
+
+Until Luan's Data Agent and a real farm-state source are delivered, this module
+supplies two clearly labeled stand-ins so a full run can be produced:
+`RecordedWeatherDataAgent` (one recorded dataset hour served as the forecast)
+and `simulated_farm_status` (every row assumed READY at one angle).
 """
 
 from dataclasses import dataclass
@@ -12,12 +17,14 @@ from typing import Callable, Sequence
 
 from src.agents.manager_agent import DeterministicSafetyTools, ManagerAgent, RowStatusLookup
 from src.agents.modeling_agent import ModelingAgent
+from src.agents import orchestrator as stages
 from src.agents.optimization_agent import OptimizationAgent
+from src.agents.orchestrator import Orchestrator
 from src.agents.reasoning import Reasoner
-from src.agents.trace import Clock, StageError, utc_now_iso
-from src.common.agent_contracts import OrchestratorContract
-from src.common.config import ENERGY_SCOPE, PREDICTION_HORIZON_MINUTES, SCHEMA_VERSION, SimulationConfig
-from src.common.schema import MODEL_NAMES, AgentState, FrontendData, Metadata, WeatherFeatures, validate_agent_state, validate_frontend_data
+from src.agents.trace import Clock, TraceRecorder, utc_now_iso
+from src.common.agent_contracts import DataAgentUpdate, OrchestratorContract
+from src.common.config import ENERGY_SCOPE, PANELS_PER_ROW, PREDICTION_HORIZON_MINUTES, SCHEMA_VERSION, TOTAL_PANELS, ZONE_ROW_COUNTS, SimulationConfig
+from src.common.schema import MODEL_NAMES, AgentState, FarmStatus, FrontendData, Metadata, WeatherFeatures, validate_frontend_data
 from src.common.tool_contracts import ToolError
 from src.models.advanced import boosting, lstm
 from src.models.advanced.features import split_for_early_stopping
@@ -41,6 +48,9 @@ COMMON_ASSUMPTIONS = (
     "Model comparison metrics are computed on the chronological validation window; the test window is held out.",
     "Control commands are simulation-only; no hardware is moved.",
 )
+RECORDED_WEATHER_ISSUE = "Recorded dataset hour served as the current forecast; forecast age is assumed to be zero, not measured."
+SIMULATED_FARM_ASSUMPTION = "SIMULATED FARM SNAPSHOT: no row telemetry exists yet, so every row is shown READY at the control row's current angle."
+NO_HISTORY_ASSUMPTION = "No decision history is stored yet; the history list is empty rather than filled with examples."
 
 
 @dataclass(frozen=True)
@@ -52,7 +62,7 @@ class DuyAgents:
     manager: ManagerAgent
 
 
-def build_metadata(source: DatasetSource, *, interval_start: str, control_target_id: str, config: SimulationConfig) -> Metadata:
+def build_metadata(source: DatasetSource, *, interval_start: str, control_target_id: str, config: SimulationConfig, extra_assumptions: Sequence[str] = ()) -> Metadata:
     """Run metadata labeled from the dataset source, so mock data can never be presented as live."""
     data_assumption = MOCK_DATA_ASSUMPTION if source.dataset_kind == "MOCK" else LIVE_DATA_ASSUMPTIONS[source.label_source]
     return {
@@ -64,7 +74,7 @@ def build_metadata(source: DatasetSource, *, interval_start: str, control_target
         "interval_start": interval_start,
         "control_target_id": control_target_id,
         "config_id": config.config_id,
-        "assumptions": [data_assumption, *COMMON_ASSUMPTIONS],
+        "assumptions": [data_assumption, *COMMON_ASSUMPTIONS, *extra_assumptions],
     }
 
 
@@ -132,29 +142,72 @@ def run_decision_stages(state: AgentState, agents: DuyAgents) -> AgentState:
     Optimization stage is recorded in `errors` and the Manager still decides
     (HOLD or STOW). A Manager failure propagates: there is no safe decision to report.
     """
-    for stage, agent in (("MODELING", agents.modeling), ("OPTIMIZATION", agents.optimization)):
-        try:
-            state = _merge_update(state, agent.run(state), stage)
-        except StageError as error:
-            state = {
-                **_merge_update(state, error.trace, state["stage"]),
-                "errors": [*state["errors"], {"agent": error.agent, "code": error.code, "message": error.message}],
-            }
-            break
-    state = _merge_update(state, agents.manager.run(state), "COMPLETE")
-    validate_agent_state(state)
-    return state
+    return stages.run_decision_stages(state, agents.modeling, agents.optimization, agents.manager)
 
 
-def _merge_update(state: AgentState, update: dict, stage: str) -> AgentState:
-    sections = {key: value for key, value in update.items() if key not in ("agent_log", "tool_calls")}
-    return {
-        **state,
-        **sections,
-        "stage": stage,
-        "agent_log": [*state["agent_log"], *update["agent_log"]],
-        "tool_calls": [*state["tool_calls"], *update["tool_calls"]],
+class RecordedWeatherDataAgent:
+    """STAND-IN for Luan's Data Agent: serves one recorded dataset hour as the forecast.
+
+    The report is DEGRADED, not VALID, and says why: nothing was fetched or
+    freshness-checked here. Replace with the real Data Agent when it is delivered.
+    """
+
+    def __init__(self, weather: WeatherFeatures, source: DatasetSource, *, clock: Clock = utc_now_iso) -> None:
+        self._weather, self._source, self._clock = weather, source, clock
+
+    def run(self, state: AgentState) -> DataAgentUpdate:
+        recorder = TraceRecorder("data", self._clock)
+        recorder.log("weather_received", f"Recorded weather for {self._weather['timestamp']} read from {self._source.path.name} ({self._source.dataset_kind}, labels {self._source.label_source})")
+        recorder.log("data_quality", RECORDED_WEATHER_ISSUE)
+        report = {"status": "DEGRADED", "source": f"recorded:{self._source.path.name}", "forecast_age_minutes": 0.0, "used_cache": False, "issues": [RECORDED_WEATHER_ISSUE]}
+        return {"data": report, "weather": self._weather, **recorder.trace()}
+
+
+def simulated_farm_status(angle_deg: float) -> FarmStatus:
+    """SIMULATED farm snapshot: every row READY at `angle_deg`, in the contract's four zones. Not telemetry."""
+    zones, rows, first = [], [], 1
+    for zone_number, row_count in enumerate(ZONE_ROW_COUNTS, start=1):
+        zone_id = f"zone-{zone_number:02d}"
+        row_ids = [f"row-{number:03d}" for number in range(first, first + row_count)]
+        zones.append({"zone_id": zone_id, "row_ids": row_ids, "panel_count": row_count * PANELS_PER_ROW})
+        rows.extend({"row_id": row_id, "zone_id": zone_id, "panel_count": PANELS_PER_ROW, "angle_deg": angle_deg, "current_state": "READY", "action": "HOLD"} for row_id in row_ids)
+        first += row_count
+    return {"total_panels": TOTAL_PANELS, "zones": zones, "rows": rows}
+
+
+def recommend_for_recorded_hour(
+    source: DatasetSource,
+    weather: WeatherFeatures,
+    modeling_tools: EvaluatedModelingTools,
+    config: SimulationConfig,
+    *,
+    control_target_id: str,
+    run_id: str,
+    reasoner: Reasoner | None = None,
+    clock: Clock = utc_now_iso,
+) -> FrontendData:
+    """One full run, Data -> Modeling -> Optimization -> Manager, for one recorded hour at the angle in `weather`.
+
+    Uses the two stand-ins above and says so in the payload's assumptions.
+    `reasoner` adds LLM-worded explanations to the agent log; it cannot change any result.
+    """
+    farm = simulated_farm_status(weather["panel_angle_deg"])
+    row_states = {row["row_id"]: {"angle_deg": row["angle_deg"], "current_state": row["current_state"]} for row in farm["rows"]}
+    agents = build_agents(modeling_tools, config, row_status=row_states.__getitem__, clock=clock, reasoner=reasoner)
+    orchestrator = Orchestrator(
+        RecordedWeatherDataAgent(weather, source, clock=clock), agents.modeling, agents.optimization, agents.manager,
+        farm_status=lambda: farm,
+    )
+    metadata = build_metadata(
+        source, interval_start=weather["timestamp"], control_target_id=control_target_id, config=config,
+        extra_assumptions=(SIMULATED_FARM_ASSUMPTION, NO_HISTORY_ASSUMPTION),
+    )
+    state: AgentState = {
+        "run_id": run_id, "timestamp": clock(), "metadata": metadata, "stage": "PENDING",
+        "weather": None, "data": None, "modeling": None, "optimization": None, "safety": None, "decision": None,
+        "agent_log": [], "tool_calls": [], "errors": [],
     }
+    return get_recommendation(state, orchestrator)
 
 
 def replay_test_window(
