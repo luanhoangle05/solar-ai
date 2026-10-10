@@ -1,0 +1,97 @@
+{
+  "measured_at": "2026-10-10T02:18:38Z",
+  "note": "Wall-clock timings of this prototype on one machine, CPU only. Not a performance guarantee.",
+  "machine": {
+    "system": "Windows",
+    "machine": "AMD64",
+    "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+    "logical_cpus": 16,
+    "python": "3.11.9"
+  },
+  "dataset": {
+    "name": "gem_2023_2025",
+    "hour": "2025-06-05T19:00:00Z",
+    "current_angle_deg": 60.0
+  },
+  "one_off_setup": {
+    "train_rows": 61173,
+    "validation_rows": 61376,
+    "boosting_training_s": 18.4,
+    "lstm_training_s": 97.4,
+    "validation_scoring_of_all_models_s": 228.4
+  },
+  "prediction_for_all_candidate_angles": {
+    "candidate_angles": 7,
+    "boosting": {
+      "repeats": 100,
+      "median_ms": 9.108,
+      "mean_ms": 9.623,
+      "min_ms": 7.716,
+      "max_ms": 14.109
+    },
+    "lstm": {
+      "repeats": 100,
+      "median_ms": 0.639,
+      "mean_ms": 0.666,
+      "min_ms": 0.477,
+      "max_ms": 1.651
+    }
+  },
+  "agent_stages_without_llm": {
+    "data": {
+      "repeats": 30,
+      "median_ms": 0.021,
+      "mean_ms": 0.021,
+      "min_ms": 0.013,
+      "max_ms": 0.037
+    },
+    "modeling": {
+      "repeats": 30,
+      "median_ms": 0.798,
+      "mean_ms": 0.788,
+      "min_ms": 0.579,
+      "max_ms": 0.941
+    },
+    "optimization": {
+      "repeats": 30,
+      "median_ms": 0.241,
+      "mean_ms": 0.236,
+      "min_ms": 0.154,
+      "max_ms": 0.29
+    },
+    "manager": {
+      "repeats": 30,
+      "median_ms": 0.117,
+      "mean_ms": 0.117,
+      "min_ms": 0.075,
+      "max_ms": 0.163
+    }
+  },
+  "whole_decision_without_llm": {
+    "repeats": 30,
+    "median_ms": 7.429,
+    "mean_ms": 7.498,
+    "min_ms": 6.733,
+    "max_ms": 8.761
+  },
+  "llm": {
+    "model": "claude-haiku-4-5-20251001",
+    "one_explanation_call": {
+      "repeats": 3,
+      "median_ms": 1391.307,
+      "mean_ms": 1702.381,
+      "min_ms": 1260.137,
+      "max_ms": 2455.7
+    }
+  },
+  "live_weather_fetch": {
+    "provider": "open-meteo",
+    "one_request": {
+      "repeats": 3,
+      "median_ms": 684.184,
+      "mean_ms": 719.986,
+      "min_ms": 683.515,
+      "max_ms": 792.259
+    }
+  }
+}
