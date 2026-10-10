@@ -1,5 +1,7 @@
 # Solar Farm AI Control System
 
+[![CI](https://github.com/luanhoangle05/solar-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/luanhoangle05/solar-ai/actions/workflows/ci.yml)
+
 A multi-agent system that decides, hour by hour, whether a row of solar panels
 should rotate to a new tilt angle. It weighs the predicted energy gain against
 the cost of moving, and a deterministic safety agent has the final word.
