@@ -20,6 +20,8 @@ Team: Luan (data pipeline), Duy (models, optimization, agents, backend), Tung (f
 - [Overall architecture](#overall-architecture)
 - [System design](#system-design)
 - [Actual results](#actual-results)
+- [Testing](#testing)
+- [Latency](#latency)
 - [Run the demo](#run-the-demo)
 - [What is real and what is simulated](#what-is-real-and-what-is-simulated)
 - [Known gaps](#known-gaps)
@@ -166,7 +168,73 @@ This replay scores the selected model's choices with that model's own prediction
 | Safety | All six checks passed |
 | Decision | ROTATE to 30 degrees (simulated) |
 
-**Engineering:** 449 backend tests and 459 frontend tests, run by CI on every pull request along with a type check, lint and a production build.
+## Testing
+
+Every pull request and every push to `main` runs both suites on GitHub Actions, plus a frontend type check, lint and production build. Tests never call the LLM or the network.
+
+**Backend: 449 tests** (Python `unittest`)
+
+| Area | Tests | What is checked |
+| --- | --- | --- |
+| Agents, orchestrator, LLM reasoning, live Data Agent | 128 | Tool coordination, the decision rule (STOW, HOLD, ROTATE), failure routing, and that the LLM cannot change a result |
+| Models, evaluation and optimizer | 117 | Training smoke tests, no data leakage in LSTM sequences, metric math, model selection, net-benefit optimization |
+| Weather pipeline | 61 | Provider mapping, validation, transform, solar position |
+| Dataset loading and example data | 59 | Delivered splits are never re-split, chronological order, labels never used as features |
+| Database storage | 32 | PostgreSQL persistence; 23 of these skip when no database is running |
+| Shared contracts | 30 | Every payload shape and its consistency rules |
+| End-to-end slice | 22 | Data to trained model to agents to a validated dashboard payload |
+
+**Frontend: 459 tests** (Vitest, 22 files): 396 logic and schema tests and 63 page and component render tests.
+
+| Check | Where | Typical time |
+| --- | --- | --- |
+| Backend test suite | CI | 60 to 120 s including dependency install |
+| Frontend type check, lint, tests, build | CI | 50 to 90 s |
+| Backend test suite | Laptop | about 25 s |
+
+Not covered: browser interaction tests (dragging, 3D rendering) are manual, and there is no measured test-coverage percentage.
+
+## Latency
+
+Measured with `python -m scripts.benchmark_latency` and stored in [data/evaluation/latency.json](data/evaluation/latency.json). These are wall-clock timings on one laptop (16 logical CPUs, no GPU, full 2023 to 2025 dataset). They describe this prototype on that machine and are not a performance guarantee.
+
+**Making one decision**, once the models are trained and scored:
+
+| Step | Median | Repeats |
+| --- | --- | --- |
+| Whole decision, all four agents plus payload validation, no LLM | 7.4 ms | 30 |
+| Modeling Agent stage (LSTM prediction for 7 candidate angles) | 0.8 ms | 30 |
+| Optimization Agent stage | 0.24 ms | 30 |
+| Manager / Safety Agent stage | 0.12 ms | 30 |
+| LSTM prediction for 7 angles, on its own | 0.64 ms | 100 |
+| Boosting prediction for 7 angles, on its own | 9.1 ms | 100 |
+
+**External calls**, which dominate when they are used:
+
+| Step | Median | Range | Repeats |
+| --- | --- | --- | --- |
+| One LLM explanation (Claude Haiku 4.5) | 1.39 s | 1.26 to 2.46 s | 3 |
+| One live weather request (Open-Meteo) | 0.68 s | 0.68 to 0.79 s | 3 |
+
+A run with explanations makes one LLM call per agent, in sequence, so it takes a few seconds; the decision itself is ready in milliseconds and does not wait for the LLM.
+
+**One-off setup** before any decision can be made:
+
+| Step | Time |
+| --- | --- |
+| Train boosting (61,173 rows) | 18 s |
+| Train LSTM | 97 s |
+| Score all models on the 2024 validation year (61,376 rows) | 228 s |
+
+**Live dashboard**, five requests per page from one location, HTML only:
+
+| Page | Time to first byte | Full HTML | Size |
+| --- | --- | --- | --- |
+| Dashboard | 159 ms | 240 ms | 68 KB |
+| Simulation | 143 ms | 230 ms | 67 KB |
+| Farm | 154 ms | 267 ms | 143 KB |
+
+The pages are static and served from Vercel's cache. Time for the browser to download and draw the 3D scene is not measured.
 
 ## Run the demo
 
