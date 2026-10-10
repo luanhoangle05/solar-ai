@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/luanhoangle05/solar-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/luanhoangle05/solar-ai/actions/workflows/ci.yml)
 
+**Live demo:** https://solar-ai-chi.vercel.app (open the Simulation page for the agents, their reasoning and the 3D farm)
+
 A multi-agent system that decides, hour by hour, whether a row of solar panels
 should rotate to a new tilt angle. It weighs the predicted energy gain against
 the cost of moving, and a deterministic safety agent has the final word.
@@ -13,43 +15,123 @@ Team: Luan (data pipeline), Duy (models, optimization, agents, backend), Tung (f
 > coefficients are assumptions, not calibrated values. Details are in
 > [What is real and what is simulated](#what-is-real-and-what-is-simulated).
 
-## How it works
+## Contents
 
-```text
-Data Agent -> Modeling Agent -> Optimization Agent -> Manager / Safety Agent -> dashboard
+- [Overall architecture](#overall-architecture)
+- [System design](#system-design)
+- [Actual results](#actual-results)
+- [Run the demo](#run-the-demo)
+- [What is real and what is simulated](#what-is-real-and-what-is-simulated)
+- [Known gaps](#known-gaps)
+- [Repository guide](#repository-guide)
+
+## Overall architecture
+
+```mermaid
+flowchart LR
+    W[Open-Meteo weather]
+    D[(Historical dataset 2023 to 2025)]
+
+    subgraph Backend[Python backend]
+        direction LR
+        DA[Data Agent] --> MA[Modeling Agent]
+        MA --> OA[Optimization Agent]
+        OA --> SA[Manager / Safety Agent]
+    end
+
+    O{{Orchestrator: state machine}}
+    L[LLM explanation with number check]
+    P[/FrontendData JSON: validated payload/]
+    UI[Next.js dashboard]
+
+    W --> DA
+    D -- train and validate --> MA
+    SA --> P
+    P --> UI
+    O -. runs agents, merges results .-> Backend
+    Backend -. recorded tool results .-> L
+    L -. explanation text .-> P
 ```
 
-| Agent | What it does | Tools it coordinates |
+The system has three parts that meet at two contracts:
+
+| Part | Owner | What it does |
 | --- | --- | --- |
-| Data | Fetches the hour's weather, validates it, adds sun position | Open-Meteo client, validation, pvlib solar position |
-| Modeling | Compares the models, picks the one with the lowest validation RMSE, predicts energy at each candidate angle | XGBoost, LSTM |
-| Optimization | Computes movement cost and net benefit for every candidate angle, including staying put | Cost simulation, optimizer |
-| Manager / Safety | Runs the safety checks and decides ROTATE, HOLD or STOW | Wind, angle-limit, data-freshness, panel-status and model checks |
+| Data pipeline (`src/pipeline/`) | Luan | Fetches and validates weather, adds sun position, builds the labeled dataset |
+| Models, agents, backend (`src/models/`, `src/agents/`, `src/service/`) | Duy | Predicts energy, optimizes the angle, applies safety, produces one decision per run |
+| Dashboard (`frontend/`) | Tung | Reads one validated payload and shows the decision, the agents and the farm |
 
-The orchestrator is a plain state machine, not an LLM. If a stage fails, the
-failure is recorded and the run still goes to the Manager, which holds or stows.
+- **Pipeline to backend:** rows with 13 fixed columns (weather, sun position, panel angle, energy label).
+- **Backend to dashboard:** one `FrontendData` JSON object. The backend validates it before writing, and the dashboard validates it again with a matching Zod schema before showing anything.
 
-**Where the LLM is used.** After an agent's tools have run, the agent asks an
-LLM to explain its recorded tool results in two or three sentences. The LLM
-never calculates and never decides: its text is accepted only if every number
-in it was produced by a tool, and it is stored in the run log. Without an API
-key, or if the call fails, agents fall back to templated text and the decision
-is identical.
+The dashboard is a static site: it reads the payload file at build time, so the deployed demo needs no server, database or API key.
 
-**Decision rule**, applied in this order:
+**Stack:** Python 3.11, PyTorch, XGBoost, pandas, pvlib · Next.js, React, TypeScript, React Three Fiber, Zod · Anthropic API for explanations · GitHub Actions for CI · Vercel for the dashboard.
 
-1. A severe safety violation (for example wind over the limit): STOW.
-2. Stale or unreliable data, or any other failed check: HOLD.
-3. Best net benefit at or below the threshold: HOLD.
-4. Otherwise: ROTATE to the recommended angle.
+## System design
 
-Net benefit = predicted energy gain - movement cost, in kWh-equivalent for one
-20-panel row over one hour.
+### The four agents
 
-## Results
+Each agent coordinates tools, records what they returned, and hands only its own section of the result to the next. The models and calculators are tools, not agents, and there is one set of agents per decision, not one per panel.
 
-Trained on 2023, validated on 2024, tested on 2025 (chronological, no shuffling).
-Figures are from [data/evaluation/system_evaluation.json](data/evaluation/system_evaluation.json).
+| Agent | Question it answers | Tools it coordinates |
+| --- | --- | --- |
+| Data | What is the weather for this hour, and can it be trusted? | Weather fetch (with retry and cache fallback), validation, solar position, feature building |
+| Modeling | How much energy would the row produce at each candidate angle? | Model comparison, selection by lowest validation RMSE, energy prediction (LSTM, XGBoost) |
+| Optimization | Which angle gives the best gain after paying for the movement? | Movement cost, net benefit, optimizer |
+| Manager / Safety | Is it safe, and is it worth it? | Wind, angle-limit, data-freshness, panel-status and model checks, then the decision rule |
+
+### Orchestrator
+
+The orchestrator is a plain state machine, not an LLM. It runs the agents in order, merges each one's section into a shared state, and collects their logs. If a stage fails, the failure is recorded and the run still goes to the Manager, which holds or stows. A missing result is never filled in.
+
+### Decision rule
+
+Applied in this order, by code:
+
+1. A severe safety violation (for example wind over the limit): **STOW**.
+2. Stale or unreliable data, or any other failed check: **HOLD**.
+3. Best net benefit at or below the threshold: **HOLD**.
+4. Otherwise: **ROTATE** to the recommended angle.
+
+### Cost model
+
+Everything is in kWh-equivalent for one 20-panel row over one hour.
+
+```text
+movement_cost = degrees_moved × (0.002 motor + 0.001 wear)
+energy_gain   = predicted_kWh(candidate angle) - predicted_kWh(current angle)
+net_benefit   = energy_gain - movement_cost
+```
+
+Every candidate angle is scored this way, including staying put at zero cost. The highest net benefit wins; ties go to the least movement, then the lowest angle. The Manager only rotates when the net benefit is above 0.02. The coefficients are prototype assumptions in `src/common/config.py`, and there are no currency figures.
+
+### Where the LLM is used
+
+After an agent's tools have run, the agent asks an LLM to explain its recorded tool results in two or three sentences.
+
+- **It only explains.** The decision is final before the LLM is asked.
+- **Its text is checked.** An explanation containing any number that no tool produced is discarded.
+- **It is optional.** Without an API key, or if the call fails, agents use templated text and the decision is identical.
+
+### Design choices
+
+| Choice | Why |
+| --- | --- |
+| Deterministic safety, LLM for wording only | A language model must not be able to override a wind limit or invent a figure |
+| Chronological train / validation / test split | Random splits leak future weather into training and inflate accuracy |
+| Model selection by a fixed rule | Lowest validation RMSE; the test year is never used to choose |
+| Optimize net benefit, not raw energy | Chasing small gains wears out the tracker for nothing |
+| One validated payload between backend and dashboard | The two halves can be built and tested independently |
+| Unavailable results are null, never zero | A missing model or stage must not look like a real measurement |
+
+More detail, including ownership and contract rules, is in [docs/architecture.md](docs/architecture.md).
+
+## Actual results
+
+Trained on 2023, validated on 2024, tested on 2025. Figures are computed, not estimated, and stored in [data/evaluation/system_evaluation.json](data/evaluation/system_evaluation.json).
+
+**Model accuracy**
 
 | Model | Validation RMSE (kWh) | Test RMSE (kWh) | Picks the best angle (test hours) |
 | --- | --- | --- | --- |
@@ -58,10 +140,9 @@ Figures are from [data/evaluation/system_evaluation.json](data/evaluation/system
 | Linear regression | not available | not available | not available |
 | Random forest | not available | not available | not available |
 
-The two baseline models are not implemented yet, so they are reported as
-unavailable rather than estimated.
+The two baseline models are not implemented yet, so they are reported as unavailable rather than estimated.
 
-Replaying the agents over every hour of 2025 for one row, against a row fixed at 35 degrees:
+**One year of decisions** for one row, replaying every hour of 2025 against a row fixed at 35 degrees:
 
 | | |
 | --- | --- |
@@ -70,42 +151,32 @@ Replaying the agents over every hour of 2025 for one row, against a row fixed at
 | Movement cost | 8.7 kWh-equivalent |
 | Net benefit | +641.5 kWh-equivalent (about 4.5%) |
 | Decisions | 177 ROTATE, 8,542 HOLD, 24 STOW |
+| Small moves avoided by the threshold | 416 |
 | Unsafe rotations | 0 |
 
-This replay scores the selected model's choices with that model's own
-predictions, so the gain is optimistic. It is not evidence of real-world savings.
+This replay scores the selected model's choices with that model's own predictions, so the gain is optimistic. It is not evidence of real-world savings.
 
-## Run it
+**The run shown in the live demo** ([data/evaluation/demo_recommendation.json](data/evaluation/demo_recommendation.json)): the hour starting 2025-06-05 19:00 UTC, with the row at 60 degrees.
 
-Requires Python 3.11 and Node.js. Commands are for PowerShell from the repository root.
+| Step | Result |
+| --- | --- |
+| Model selected | LSTM (validation RMSE 0.009265 kWh) |
+| Prediction | 7.867 kWh at 30 degrees, 7.059 kWh at the current 60 degrees |
+| Optimization | Gain 0.808 kWh, movement cost 0.090, net benefit +0.7182 kWh-equivalent |
+| Safety | All six checks passed |
+| Decision | ROTATE to 30 degrees (simulated) |
 
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m unittest discover -s tests
-```
+**Engineering:** 449 backend tests and 459 frontend tests, run by CI on every pull request along with a type check, lint and a production build.
 
-**One agent run**, written to `data/evaluation/latest_recommendation.json`:
+## Run the demo
 
-```powershell
-# A recorded daytime hour from the dataset (about 4 minutes; drop --skip-lstm to include the LSTM)
-.\.venv\Scripts\python.exe -m scripts.run_recommendation --skip-lstm
+### Option 1: open the live demo
 
-# The current hour's live forecast for the demo site
-.\.venv\Scripts\python.exe -m scripts.run_recommendation --live
-```
+https://solar-ai-chi.vercel.app. Nothing to install. It shows the recorded run above.
 
-Useful options: `--angle 60` sets the row's current angle, `--no-llm` turns off
-the LLM explanations, `--output` chooses the file.
+### Option 2: run the dashboard locally
 
-For LLM explanations, put an Anthropic API key in a `.env` file at the
-repository root (the file is git-ignored):
-
-```text
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-**The dashboard:**
+Requires Node.js. From the repository root in PowerShell:
 
 ```powershell
 cd frontend
@@ -113,16 +184,55 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. By default it shows the mock fixture. To show a
-generated run, create `frontend/.env.local` with a path relative to the
-repository root:
+Open http://localhost:3000. By default it shows the mock fixture. To show the same real run as the live demo, create `frontend/.env.local` containing:
 
 ```text
-SOLAR_FRONTEND_DATA=data/evaluation/latest_recommendation.json
+SOLAR_FRONTEND_DATA=data/evaluation/demo_recommendation.json
 ```
 
-The full dataset is not committed; see [docs/full-dataset.md](docs/full-dataset.md).
-Without it, the committed seasonal sample is used.
+Then restart `npm run dev`.
+
+### Option 3: generate a new agent run
+
+Requires Python 3.11. From the repository root:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# A recorded daytime hour from the dataset (drop --skip-lstm to include the LSTM, which is much slower)
+.\.venv\Scripts\python.exe -m scripts.run_recommendation --skip-lstm
+
+# The current hour's live forecast for the demo site
+.\.venv\Scripts\python.exe -m scripts.run_recommendation --live
+```
+
+The result is written to `data/evaluation/latest_recommendation.json`. Point `SOLAR_FRONTEND_DATA` at that file to see it in the dashboard.
+
+| Option | Effect |
+| --- | --- |
+| `--angle 60` | Sets the row's current angle |
+| `--skip-lstm` | Trains boosting only; the LSTM is reported unavailable |
+| `--live` | Fetches the current forecast instead of replaying a dataset hour |
+| `--no-llm` | Templated explanations only |
+| `--output PATH` | Chooses the output file |
+
+**LLM explanations** need an Anthropic API key in a `.env` file at the repository root (the file is git-ignored). Without it everything still runs:
+
+```text
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+**Dataset.** The full 2023 to 2025 dataset is not committed; see [docs/full-dataset.md](docs/full-dataset.md). Without it, the committed seasonal sample is used, so your numbers will differ from the results above.
+
+### Run the tests
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests
+
+cd frontend
+npm test
+```
 
 ## What is real and what is simulated
 
@@ -136,7 +246,7 @@ Without it, the committed seasonal sample is used.
 | Recorded-hour run | A past dataset hour replayed as the forecast, reported as DEGRADED |
 | Farm snapshot in a generated run | Simulated: every row shown READY at the control row's angle |
 | Control commands | Simulation only; nothing is sent to hardware |
-| Row-to-row shading | Not modeled; rows are optimized independently |
+| Row-to-row shading | Not modeled; a decision is computed for one control row per run |
 | 3D sun, clouds, sun-tracking demo and Sun lab in the dashboard | Illustrative only; they do not come from the model |
 
 ## Known gaps
@@ -146,6 +256,7 @@ Without it, the committed seasonal sample is used.
 - Linear regression and random forest are not implemented.
 - The LSTM is not used in a live run because it needs look-back weather history.
 - There is no decision history yet; the dashboard's history list is empty for generated runs.
+- The live demo is deployed from a fork, so it does not update automatically when this repository changes.
 
 ## Repository guide
 
@@ -158,4 +269,6 @@ Without it, the committed seasonal sample is used.
 | `src/common/` | Shared contracts, schema and configuration |
 | `frontend/` | Next.js dashboard |
 | `scripts/` | Run, evaluation, tuning and data-building commands |
+| `tests/` | Backend test suite |
+| `.github/workflows/ci.yml` | CI: backend tests and frontend checks |
 | `docs/architecture.md` | Architecture, ownership and contract rules |
