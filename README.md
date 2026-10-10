@@ -293,6 +293,26 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 **Dataset.** The full 2023 to 2025 dataset is not committed; see [docs/full-dataset.md](docs/full-dataset.md). Without it, the committed seasonal sample is used, so your numbers will differ from the results above.
 
+### Option 4: generate a run with Docker
+
+No Python setup needed. From the repository root:
+
+```powershell
+docker build -t solar-ai-backend .
+docker run --rm -v "${PWD}/out:/out" solar-ai-backend
+```
+
+The result is written to `out/recommendation.json`. The image contains the code and the committed seasonal sample only: no API key and not the full dataset.
+
+| To | Add |
+| --- | --- |
+| Get LLM explanations | `-e ANTHROPIC_API_KEY=sk-ant-...` before the image name |
+| Use the full dataset | `-v "<path to gem_2023_2025>:/app/data/generated/gem_2023_2025:ro"` before the image name |
+| Change the run | Options after the image name, for example `--angle 60 --output /out/recommendation.json` |
+| Write files as yourself on Linux | `--user "$(id -u):$(id -g)"` before the image name |
+
+Options given after the image name replace the defaults (`--skip-lstm --output /out/recommendation.json`), so include `--output /out/...` when you pass your own.
+
 ### Run the tests
 
 ```powershell
@@ -338,5 +358,6 @@ npm test
 | `frontend/` | Next.js dashboard |
 | `scripts/` | Run, evaluation, tuning and data-building commands |
 | `tests/` | Backend test suite |
-| `.github/workflows/ci.yml` | CI: backend tests and frontend checks |
+| `.github/workflows/ci.yml` | CI: backend tests, backend Docker image, frontend checks |
+| `Dockerfile` | Backend image that generates one agent recommendation |
 | `docs/architecture.md` | Architecture, ownership and contract rules |
