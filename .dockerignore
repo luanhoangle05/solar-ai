@@ -1,0 +1,29 @@
+# Keep the build context small and keep secrets and large data out of the image.
+.git
+.github
+.venv
+.vscode
+.pytest_cache
+**/__pycache__
+**/*.pyc
+
+# Secrets: the API key is passed at run time with -e, never baked in.
+.env
+.env.*
+!.env.example
+
+# Not needed by the backend image.
+frontend
+tests
+docs
+sql
+compose.yaml
+CLAUDE.md
+out
+
+# Large or generated data. The full dataset is mounted at run time when wanted.
+data/raw
+data/processed
+data/evaluation
+data/generated/*
+!data/generated/gem_seasonal_sample
