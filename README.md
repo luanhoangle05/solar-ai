@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/luanhoangle05/solar-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/luanhoangle05/solar-ai/actions/workflows/ci.yml)
 
+**Live demo:** https://solar-ai-chi.vercel.app (the dashboard showing one recorded agent run; open the Simulation page for the agents, their reasoning and the 3D farm)
+
 A multi-agent system that decides, hour by hour, whether a row of solar panels
 should rotate to a new tilt angle. It weighs the predicted energy gain against
 the cost of moving, and a deterministic safety agent has the final word.
